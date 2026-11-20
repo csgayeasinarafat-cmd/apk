@@ -46,3 +46,40 @@ The comparison covers publicly documented behavior. Product storage engines, ser
 
 Physical Y8p acceptance requires a real device. The repository's emulator uses Android 10 without EMUI.
 
+
+## Development implementation
+
+The dashboard opens the visual builder, playback, voice, private memory, contacts, execution history and permission settings. The legacy dashboard still opens separately. The appearance setting selects an application theme. The dashboard has an English/Bangla switch. Some secondary screens use bilingual labels and English explanations.
+
+Advanced rules now have a trigger, an optional target/date, a recursive condition, a description, and ordered actions. Rules are stored in private SQLite. A preference migration keeps the old data as a recovery source. Choose an action from the picker, enter its parameter, then save. Enter an app package for app-open or notification events, a paired device name for Bluetooth, and latitude, longitude and radius in metres for proximity. Permission and provider availability affect delivery. Charging, battery and connectivity observations run while the application process is alive. App usage checks are periodic and can be delayed. Notification events match the package and discard the content.
+
+Actions dispatch in order. A user-facing action posts a notification and continues dispatching. History records posting rather than the user's completion of an external action. Delay persists a continuation; changing the rule invalidates it. Linked rules have cycle and depth checks. An interrupted delivery between claiming a continuation and posting its next action can lose that step. Full transactional delivery and semantic voice disambiguation remain future work.
+
+For daily native Quran, select the Quran player action in a daily rule. Tap the notification at the scheduled time and press Play. Repeat is on by default. The built-in Al-Baqarah recording is Aaqib Azeez's CC0 recitation, streamed on demand. The original is about 332 MB. Additional reciters and surahs can be imported using the Android document picker. [Recording and licence](https://commons.wikimedia.org/wiki/File:Chapter_2,_Al-Baqarah_(Murattal)_-_Recitation_of_the_Holy_Qur%27an.mp3)
+
+Memory backups include named memory entries and advanced rules. Audio files, provider access grants, legacy rules and run history are device-specific. Choose a private location for the readable JSON file. Imported rules are disabled for review. Previously saved legacy trusted numbers remain available in legacy tools. Name contacts in Personal Memory for voice matching.
+
+The optional usage service reads local foreground activity transitions for enabled package filters. The optional notification listener compares package names only. The location service relies on Android proximity alerts and available device providers. Revocation, Bluetooth delivery, standby and EMUI battery management require physical tests. Time and weekday rules require no Google services.
+
+## Public implementation references
+
+The public Tasker plug-in SDK separates typed action input/output from the runner that receives an Android intent. This documents the plug-in boundary, not Tasker's private engine. Google's public App Actions examples map named voice capabilities into activities. MyLife uses a local rule proposal and explicit review so scheduling works independently of either SDK. [Tasker plug-in runner](https://github.com/joaomgcd/TaskerPluginSample/blob/master/taskerpluginlibrary/src/main/java/com/joaomgcd/taskerpluginlibrary/action/TaskerPluginRunnerAction.kt) · [Google App Actions examples](https://developers.google.com/assistant/app/samples)
+
+The player uses the platform MediaPlayer, MediaSession and audio-focus APIs in a foreground service. Mobile music libraries and local playlists informed the recording picker. No source from a proprietary player is included. [Android media service guidance](https://developer.android.com/media/media3/session/background-playback) · [Musicolet playback guide](https://krosbits.in/musicolet/)
+
+Tasker documents time, day, state, application and location contexts. MacroDroid documents initialization events for restoring configuration. IFTTT exposes service failures in the activity feed. TickTick combines task capture with calendar and NLP input. These interfaces informed the rule editor, boot receiver, outcome history and proposed-time preview. [Tasker](https://tasker.joaoapps.com/userguide/en/) · [MacroDroid](https://macrodroidforum.com/wiki/index.php/Trigger%3A_MacroDroid_Initialised) · [IFTTT](https://help.ifttt.com/hc/en-us/articles/115010194547-Common-errors-and-troubleshooting-tips) · [TickTick](https://ticktick.com/features)
+
+### Requirements and Android limits by reference
+
+| Pattern | Required by an Android equivalent | Background, voice and data implications |
+|---|---|---|
+| Tasker profile → task | Event adapter plus ordered action registry and trace IDs | Observe supported system events. Ask for special access for usage or notifications. Local typed variables can supply conditions. Public SDK code demonstrates plug-in integration; private storage and voice internals were not verified. |
+| MacroDroid trigger + constraints | UI controls for each argument, predicate evaluation, enable state | Device broadcasts have different delivery rules after process death. Keep the original rule and the reason it was skipped. The reference wiki documents variables and initialization events. Voice implementation was not verified. |
+| IFTTT Applet | Authenticated service for each external connector and an activity feed | Cloud events need connectivity and consent. Device actions can still require a user tap. MyLife's equivalent keeps rules on the device. Filter and service reconnection behavior are documented. |
+| Assistant Routine | An available recognition service and a mapping from utterance to starter/action | Device/account availability affects starters. On a Huawei phone, allow typed commands, show extracted time and number, then confirm. Internal model and storage details were not verified. |
+| Musicolet track/queue | A readable media URI, audio focus, playback service, media controls | Local library permissions differ from streaming. Lock-screen controls and saved positions are documented. No general-purpose automation trigger or voice engine was established by the cited guides. |
+| TickTick capture → reminder | Parser, editable due time, task list, recurring scheduler | Notification permission, clock/time-zone changes and battery policy affect delivery. Calendar integration introduces separate account permissions. Internal error logs and scheduler implementation were not verified. |
+
+### Test boundaries
+
+The cloud workflow builds the same debug variant it installs, runs JVM tests for scheduling and time parsing, checks its signature and launches the real activity on API 29. Emulator QA uses disposable data to exercise the rule editor, local store, event delivery and player. A test tone checks audio mechanics; listening quality and the recording stream need separate verification. Cloud signing uses ephemeral debug keys. A stable user-controlled signing key is future release work.
