@@ -41,7 +41,7 @@ def hide_keyboard():
 def launch():
     adb("shell","am","start","-W","-n","com.mylife.agent/.MainActivity")
 
-def count_rules(description=None):
+def count_rules(description=None,detail=None):
     # Debug builds permit run-as. Take a consistent, read-only snapshot after closing the activity.
     import sqlite3, tempfile, pathlib
     with tempfile.TemporaryDirectory() as tmp:
@@ -50,6 +50,8 @@ def count_rules(description=None):
             if data.returncode == 0 and (name.endswith(".db") or data.stdout[:4] in (b"7\x7f\x06\x82",b"7\x7f\x06\x83")):
                 pathlib.Path(tmp,name).write_bytes(data.stdout)
         with sqlite3.connect(str(pathlib.Path(tmp,"automation.db"))) as db:
+            if detail is not None:
+                return db.execute("SELECT count(*) FROM history WHERE detail=?",(detail,)).fetchone()[0]
             if description is not None:
                 import json
                 return sum(json.loads(row[0]).get("description")==description for row in db.execute("SELECT data FROM rules"))
@@ -109,6 +111,14 @@ while time.monotonic()<deadline:
 else:
     raise AssertionError("Scheduled notification did not arrive")
 print("PASS: preference migration and background scheduled notification")
+
+adb("shell","cmd","appops","set","com.mylife.agent","POST_NOTIFICATION","deny")
+launch()
+button("Automation studio")
+button("Run now (notifications)")
+assert count_rules(detail="Notifications disabled")>0,"Missing notification-denial history"
+adb("shell","cmd","appops","set","com.mylife.agent","POST_NOTIFICATION","allow")
+print("PASS: blocked notification recorded in history")
 
 # Exercise MediaPlayer with an original test tone. Grant the launcher temporary read
 # access to the emulator MediaStore URI, as a user selecting a recording would.
