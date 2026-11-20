@@ -42,9 +42,11 @@ object OptionalEvents {
         Location.distanceBetween(lat,lon,last.latitude,last.longitude,result)
         return result[0]<=radius
     }
+    fun usageAllowed(c:Context):Boolean = c.getSystemService(AppOpsManager::class.java)
+        .unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,android.os.Process.myUid(),c.packageName)==AppOpsManager.MODE_ALLOWED
     fun monitorApps(c:Context,rules:List<AdvancedRule>){
         val job=c.getSystemService(JobScheduler::class.java)
-        if(rules.none{it.enabled && it.event=="APP_OPEN"}){job.cancel(JOB);return}
+        if(!usageAllowed(c) || rules.none{it.enabled && it.event=="APP_OPEN"}){job.cancel(JOB);return}
         if(job.getPendingJob(JOB)!=null)return
         c.getSharedPreferences("app_events",0).edit().putLong("cursor",System.currentTimeMillis()).apply()
         job.schedule(JobInfo.Builder(JOB,ComponentName(c,AppEventsJob::class.java)).setPeriodic(15*60*1000L).setPersisted(true).build())
@@ -60,7 +62,7 @@ class AppEventsJob:JobService(){
     override fun onStartJob(params:JobParameters):Boolean {
         val prefs=getSharedPreferences("app_events",0);val now=System.currentTimeMillis()
         val from=prefs.getLong("cursor",now).coerceIn(now-24*60*60*1000,now)
-        val events=getSystemService(UsageStatsManager::class.java).queryEvents(from,now)?:return false
+        val events=runCatching{getSystemService(UsageStatsManager::class.java).queryEvents(from,now)}.getOrNull()?:return false
         val rules=AdvancedRules.load(this).filter{it.event=="APP_OPEN" && it.enabled}
         val e=UsageEvents.Event()
         while(events.hasNextEvent()){events.getNextEvent(e)
