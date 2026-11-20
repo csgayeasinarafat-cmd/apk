@@ -134,12 +134,19 @@ with wave.open(stream,"wb") as wav:
     wav.setparams((1,2,8000,0,"NONE","uncompressed"))
     wav.writeframes(b"".join(struct.pack("<h",int(1000*math.sin(2*math.pi*220*i/8000))) for i in range(8000*12)))
 base="content://media/external/audio/media"
-adb("shell","content","insert","--uri",base,"--bind","_display_name:s:"+file_name,"--bind","mime_type:s:audio/wav")
-raw=adb("shell","content query --uri "+base+" --projection _id --where \"_display_name='"+file_name+"'\"")
-match=re.search(r"_id=(\d+)",raw)
-assert match, "Test recording missing: "+raw
+import tempfile
+with tempfile.NamedTemporaryFile(suffix=".wav") as sample:
+    sample.write(stream.getvalue());sample.flush()
+    adb("shell","mkdir","-p","/sdcard/Music")
+    adb("push",sample.name,"/sdcard/Music/"+file_name)
+adb("shell","am","broadcast","-a","android.intent.action.MEDIA_SCANNER_SCAN_FILE","-d","file:///sdcard/Music/"+file_name)
+for _ in range(12):
+    raw=adb("shell","content query --uri "+base+" --projection _id --where \"_display_name='"+file_name+"'\"")
+    match=re.search(r"_id=(\d+)",raw)
+    if match:break
+    time.sleep(1)
+assert match,"Android media scan did not index the test recording"
 uri=base+"/"+match.group(1)
-subprocess.run(["adb","shell","-T","content","write","--uri",uri],input=stream.getvalue(),check=True)
 adb("shell","am","force-stop","com.mylife.agent")
 player_xml='<map><string name="recordings">'+xml_escape(json.dumps({title:uri}))+'</string><string name="selected">'+title+'</string></map>'
 subprocess.run(["adb","shell","run-as","com.mylife.agent","tee","shared_prefs/quran_player.xml"],input=player_xml,text=True,stdout=subprocess.DEVNULL,check=True)
