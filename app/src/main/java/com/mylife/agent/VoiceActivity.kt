@@ -37,16 +37,9 @@ class VoiceActivity:Activity(){
         val s=original.lowercase(Locale.ROOT).map{if(it in '০'..'৯')('0'+(it-'০')) else it}.joinToString("")
         val daily=listOf("প্রতিদিন","daily","every day").any{s.contains(it)}
         val tomorrow=s.contains("আগামীকাল")||s.contains("tomorrow")
-        val morning=listOf("সকাল","morning").any{s.contains(it)}
-        val night=listOf("রাত","বিকাল","বিকেল","evening","night").any{s.contains(it)} || Regex("\\bpm\\b").containsMatchIn(s)
-        val numbers=listOf("বারো","এগারো","দশ","নয়","নয়","আট","সাত","ছয়","ছয়","পাঁচ","চার","তিন","দুই","এক")
-        val values=listOf(12,11,10,9,9,8,7,6,6,5,4,3,2,1)
-        val time=Regex("(?<![0-9])([0-9]{1,2})(?::([0-9]{2}))?(?![0-9])").find(s)
-        val word=numbers.indexOfFirst { s.contains(it+"টা") || s.contains(it+"টায়") }
-        var h=time?.groupValues?.get(1)?.toIntOrNull() ?: values.getOrNull(word)
-        val m=time?.groupValues?.get(2)?.toIntOrNull()?:0
-        if(h!=null && night && h in 1..11)h+=12
-        if(h==12 && (morning || s.contains(" am")))h=0
+        val clock=RuleLogic.commandTime(s)
+        val h=clock?.hour
+        val m=clock?.minute?:0
         val memory=getSharedPreferences("private_memory",0)
         val call=s.contains("ডায়ালার")||s.contains("ডায়ালার")||s.contains("ফোন")||Regex("\\b(call|dial)\\b").containsMatchIn(s)
         val message=s.contains("মেসেজ")||s.contains("message")||s.contains("whatsapp")
