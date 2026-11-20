@@ -1,28 +1,15 @@
-# MyLife AI v1.2 — Huawei Y8p / Android 10+
+# MyLife AI · Automation Studio
 
-## Features
-- Local advanced daily rule editor: IF time AND weekdays (1=Monday ... 7=Sunday), THEN multiple actions.
-- Supported actions: `WEB|https://quran.com/2`, `AUDIO|https://.../002.mp3`, `WIFI|settings`, `DIAL|+880...`, `WHATSAPP|880...`, `NOTE|text`.
-- Multiple action lines generate separate notification entry points; user taps to proceed.
-- Browser opens Quran.com, but cannot guarantee Chrome, browser autoplay, or endless repeat.
-- In-app audio foreground service with user-initiated Play and Stop notification. Audio stops at track completion.
-- Demo Morning Quran rule is **disabled by default**. It includes a sample third-party direct MP3 URL that has NOT been checked for availability, rights or accuracy; replace it if necessary.
-- Legacy v1.1 editor remains accessible; prefer Advanced Builder for new rules.
+Kotlin development build for Android 10 and later. Open Automation studio to choose a trigger, add conditions and assemble actions. Save the rule, then use Run now or let the configured event trigger it. The rule list supports search, editing, duplication, disabling and deletion.
 
-## Android constraints
-- Background activity launch is not automatic: scheduled alarm posts notification, and user taps to start playback.
-- Wi-Fi settings cannot be silently toggled by normal apps on Android 10+.
-- WhatsApp message and phone call require user confirmation.
-- Android 12+ exact alarms may require special access; Android 13+ notifications need runtime permission.
-- Huawei EMUI battery optimization can delay alarms; configure app launch/background activity and battery permissions.
-- Speech recognition depends on installed speech service and may not work without Google services.
-- Day/time logic uses phone local timezone.
-- AND/OR support is **limited**: time AND allowed weekdays; weekdays are OR; actions are multiple parallel notifications. Arbitrary nested Boolean conditions and event triggers are not implemented.
+The dashboard includes a Quran player, Bangla/English voice preview, local memory, contacts, execution history and permission settings. Scheduled browser and audio actions post a notification. Tap it to open the destination. The native player supports long-running playback with repeat, progress, speed and notification controls. Al-Baqarah is available on demand. Local recordings are selected through the Android document picker.
+
+The development report covers permission requirements, trigger delivery limits, external actions, backups, audio attribution and Huawei testing. [Engineering report](DEVELOPMENT.md)
 
 ## Build and install the APK
 
 1. Open [Build MyLife AI APK](https://github.com/csgayeasinarafat-cmd/apk/actions/workflows/android.yml) in GitHub Actions.
-2. To build again, choose **Run workflow** on the `main` branch. A push to `main` also starts a build.
+2. To build again, choose **Run workflow** on the `development/automation-studio` branch.
 3. Open the successful run and download **MyLifeAI-debug-APK** from **Artifacts**.
 4. Unzip the download, transfer `app-debug.apk` to the phone, and open it to install.
 
