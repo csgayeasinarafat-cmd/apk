@@ -8,7 +8,7 @@ import org.json.*
 
 class MemoryActivity:Activity(){
     private val store by lazy { getSharedPreferences("private_memory",0) }
-    private val kinds=listOf("Contact","Website","Routine","Reciter","Preference","Command","Message template")
+    private val kinds=listOf("Contact","Application","Website","Routine","Reciter","Preference","Command","Message template")
     private lateinit var category:Spinner
     private lateinit var name:EditText
     private lateinit var value:EditText
@@ -70,7 +70,8 @@ class MemoryActivity:Activity(){
                 val imports=(0 until rows.length()).map{AdvancedRule.parse(rows.getJSONObject(it)).also{r->
                     require(r.id>0 && r.name.isNotBlank() && r.hour in 0..23 && r.minute in 0..59 && r.days.isNotEmpty() && r.days.all{it in '1'..'7'} && AdvancedRules.validActions(r.actions) && r.event in RuleConditions.events)
                     if(r.event=="DATE")java.time.LocalDate.parse(r.date)
-                    if(r.condition.isNotBlank())RuleConditions.matches(this,r.condition)
+                    require(RuleConditions.valid(r.condition))
+                    if(r.event in setOf("ARRIVE","DEPART"))OptionalEvents.area(r.date)
                 }}
                 AlertDialog.Builder(this).setTitle("Import backup?").setMessage("Add missing memory entries and rules. Imported rules start disabled. Existing entries with matching IDs are kept.")
                     .setPositiveButton("Import"){_,_-> val current=AdvancedRules.load(this);val ids=current.map{it.id}.toSet()
