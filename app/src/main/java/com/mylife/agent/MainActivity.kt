@@ -18,6 +18,7 @@ class MainActivity : Activity() {
  private lateinit var command: EditText
  private val speechCode=11
  override fun onCreate(savedInstanceState:Bundle?) { super.onCreate(savedInstanceState)
+  if(!intent.getBooleanExtra("legacy",false)){AdvancedRules.reschedule(this);AutomationEngine.rescheduleAll(this);if(getPreferences(0).getBoolean("wifi",false))RuleReceiver.schedule(this);Dashboard(this).show();return}
   val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,24,24,24); setBackgroundColor(Color.rgb(245,248,255)) }
   val scroll=ScrollView(this); scroll.addView(root); setContentView(scroll)
   fun heading(s:String,size:Float) { root.addView(TextView(this).apply { text=s; textSize=size; setTextColor(Color.rgb(20,51,110)); setPadding(0,12,0,12) }) }
@@ -95,11 +96,7 @@ class MainActivity : Activity() {
   status.text="No compatible app found on this phone"
   false
  }
- private fun runCommand(raw:String) { val s=raw.lowercase(Locale.ROOT);when {
-  s.contains("wifi")||s.contains("ওয়াইফাই")||s.contains("ওয়াইফাই")->openExternal(Intent(Settings.ACTION_WIFI_SETTINGS))
-  s.contains("good morning")||s.contains("গুড মর্নিং")->whatsapp()
-  s.contains("call")||s.contains("কল")||s.contains("ফোন কর")->dial()
-  s.contains("alarm")||s.contains("অ্যালার্ম")->status.text="Tap the 7 AM alarm button to configure your Clock"
-  else->status.text="Unknown command. Try: wifi, good morning, call, alarm"
- } }
+ private fun runCommand(raw:String) {
+  startActivity(Intent(this,VoiceActivity::class.java).putExtra("command",raw))
+ }
 }
