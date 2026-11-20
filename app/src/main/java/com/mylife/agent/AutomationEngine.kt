@@ -24,8 +24,7 @@ object AutomationEngine {
  fun rescheduleAll(c:Context,items:List<AutomationRule> = load(c)){items.forEach { schedule(c,it) }}
  fun schedule(c:Context,r:AutomationRule){val a=alarm(c);val p=pending(c,r.id);a.cancel(p);if(!r.enabled)return
   val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,r.hour);set(Calendar.MINUTE,r.minute);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0);if(timeInMillis<=System.currentTimeMillis())add(Calendar.DAY_OF_YEAR,1) }
-  if(Build.VERSION.SDK_INT>=31 && a.canScheduleExactAlarms())a.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,p)
-  else a.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,p)
+  scheduleWakeup(a,cal.timeInMillis,p)
  }
  fun remove(c:Context,id:Int){alarm(c).cancel(pending(c,id));save(c,load(c).filterNot { it.id==id })}
  fun execute(c:Context,r:AutomationRule){val nm=c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -33,11 +32,11 @@ object AutomationEngine {
   val target=when(r.action){"WEB"->Intent(Intent.ACTION_VIEW,Uri.parse(r.value));"WIFI"->Intent(Settings.ACTION_WIFI_SETTINGS);"DIAL"->Intent(Intent.ACTION_DIAL,Uri.parse("tel:"+r.value.filter { it.isDigit()||it=='+' }));"WHATSAPP"->Intent(Intent.ACTION_VIEW,Uri.parse("https://wa.me/"+r.value.filter { it.isDigit() }));else->Intent(c,MainActivity::class.java)}
   target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
   val click=PendingIntent.getActivity(c,r.id,target,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  val message=when(r.action){"WEB"->"Tap to open ${r.value}. Press Play on the site; browser autoplay is restricted.";"WIFI"->"Tap to change Wi-Fi settings";"DIAL"->"Tap to review the phone call";"WHATSAPP"->"Tap to open WhatsApp";else->"Tap to open MyLife AI"}
+  val message=when(r.action){"WEB"->"Tap to open ${r.value}. Press Play on the site; browser autoplay is restricted.";"WIFI"->"Tap to change Wi-Fi settings";"DIAL"->"Tap to review the phone call";"WHATSAPP"->"Tap to open WhatsApp";"REMINDER"->r.value;else->"Tap to open MyLife AI"}
   val b=if(Build.VERSION.SDK_INT>=26)Notification.Builder(c,"mylife_automations") else Notification.Builder(c)
   val n=b.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(r.title).setContentText(message).setStyle(Notification.BigTextStyle().bigText(message)).setContentIntent(click).setAutoCancel(true).build()
   try{nm.notify(r.id,n)}catch(_:SecurityException){}
  }
 }
 class AutomationReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){val id=i?.getIntExtra("id",-1)?:-1;val r=AutomationEngine.load(c).firstOrNull { it.id==id && it.enabled }?:return;AutomationEngine.execute(c,r);AutomationEngine.schedule(c,r)}}
-class AutomationBootReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){if(i?.action==Intent.ACTION_BOOT_COMPLETED || i?.action==Intent.ACTION_TIME_CHANGED || i?.action==Intent.ACTION_TIMEZONE_CHANGED)AutomationEngine.rescheduleAll(c)}}
+class AutomationBootReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){if(i?.action==Intent.ACTION_BOOT_COMPLETED || i?.action==Intent.ACTION_TIME_CHANGED || i?.action==Intent.ACTION_TIMEZONE_CHANGED || i?.action==AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)AutomationEngine.rescheduleAll(c)}}
