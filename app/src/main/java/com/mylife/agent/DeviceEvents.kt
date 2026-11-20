@@ -26,6 +26,18 @@ class DeviceEvents:Application(){
         }
     }
     override fun onCreate(){super.onCreate()
+        registerActivityLifecycleCallbacks(object:ActivityLifecycleCallbacks{
+            override fun onActivityPreCreated(a:android.app.Activity,state:Bundle?){
+                a.setTheme(if(getSharedPreferences("appearance",0).getBoolean("dark",false))android.R.style.Theme_Material_NoActionBar else android.R.style.Theme_Material_Light_NoActionBar)
+            }
+            override fun onActivityCreated(a:android.app.Activity,state:Bundle?){}
+            override fun onActivityStarted(a:android.app.Activity){}
+            override fun onActivityResumed(a:android.app.Activity){}
+            override fun onActivityPaused(a:android.app.Activity){}
+            override fun onActivityStopped(a:android.app.Activity){}
+            override fun onActivitySaveInstanceState(a:android.app.Activity,state:Bundle){}
+            override fun onActivityDestroyed(a:android.app.Activity){}
+        })
         registerReceiver(observer,IntentFilter().apply{addAction(Intent.ACTION_BATTERY_CHANGED);addAction(Intent.ACTION_POWER_CONNECTED);addAction(Intent.ACTION_POWER_DISCONNECTED)})
         val cm=getSystemService(ConnectivityManager::class.java)
         cm.registerDefaultNetworkCallback(object:ConnectivityManager.NetworkCallback(){
