@@ -7,8 +7,24 @@
 <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 <queries><intent><action android:name="android.speech.action.RECOGNIZE_SPEECH"/></intent></queries>
-<application android:label="MyLife AI" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="false">
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+<uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"/>
+<application android:name=".DeviceEvents" android:label="MyLife AI" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="false">
 <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+<receiver android:name=".AreaReceiver" android:exported="false"/>
+<service android:name=".AppEventsJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true"/>
+<activity android:name=".SpeakActivity" android:exported="false"/>
+<receiver android:name=".SequenceReceiver" android:exported="false"/>
+<activity android:name=".VoiceActivity" android:exported="false"/>
+<activity android:name=".MemoryActivity" android:exported="false"/>
+<service android:name=".NotificationEvents" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:exported="true">
+<intent-filter><action android:name="android.service.notification.NotificationListenerService"/></intent-filter></service>
+<receiver android:name=".BluetoothEvents" android:exported="false"><intent-filter><action android:name="android.bluetooth.device.action.ACL_CONNECTED"/><action android:name="android.bluetooth.device.action.ACL_DISCONNECTED"/></intent-filter></receiver>
 <activity android:name=".AdvancedActivity" android:exported="false"/>
 <activity android:name=".PlayerActivity" android:exported="false"/>
 <service android:name=".AudioService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>
