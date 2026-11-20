@@ -147,10 +147,10 @@ class PlayerActivity : Activity() {
         super.onCreate(state)
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(28,32,28,24)}
         setContentView(ScrollView(this).apply{addView(root)})
-        fun button(label:String, action:()->Unit){root.addView(Button(this).apply{text=label;setOnClickListener{action()}})}
+        fun button(label:String, action:()->Unit){root.addView(Button(this).apply{text=this@PlayerActivity.uiLabel(label);setOnClickListener{action()}})}
         root.addView(TextView(this).apply{text="Quran player · কুরআন";textSize=26f})
-        surah=EditText(this).apply{hint="Surah name or number"};root.addView(surah)
-        reciter=EditText(this).apply{hint="Reciter"};root.addView(reciter)
+        surah=EditText(this).apply{hint=this@PlayerActivity.uiLabel("Surah name or number")};root.addView(surah)
+        reciter=EditText(this).apply{hint=this@PlayerActivity.uiLabel("Reciter")};root.addView(reciter)
         button("Add a recording you have permission to use"){
             if(surah.text.isBlank() || reciter.text.isBlank())return@button Toast.makeText(this,"Enter surah and reciter",Toast.LENGTH_SHORT).show()
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("audio/*"),50)
@@ -166,9 +166,9 @@ class PlayerActivity : Activity() {
             startForegroundService(Intent(this,AudioService::class.java).putExtra("url",uri).putExtra("title",if(explicit==null) selected else "Scheduled recording"))
         }
         button("Pause"){service?.pause()};button("Resume"){service?.resume()};button("Stop"){service?.finishPlayback()}
-        root.addView(CheckBox(this).apply{text="Repeat until stopped";isChecked=prefs.getBoolean("repeat",true);setOnCheckedChangeListener{_,on->prefs.edit().putBoolean("repeat",on).apply();service?.configure()}})
+        root.addView(CheckBox(this).apply{text=this@PlayerActivity.uiLabel("Repeat until stopped");isChecked=prefs.getBoolean("repeat",true);setOnCheckedChangeListener{_,on->prefs.edit().putBoolean("repeat",on).apply();service?.configure()}})
         button("Playback speed"){val speeds=arrayOf("0.75","1.0","1.25","1.5","2.0")
-            AlertDialog.Builder(this).setTitle("Playback speed").setItems(speeds){_,i->prefs.edit().putFloat("speed",speeds[i].toFloat()).apply();service?.configure()}.show()}
+            AlertDialog.Builder(this).setTitle(this@PlayerActivity.uiLabel("Playback speed")).setItems(speeds){_,i->prefs.edit().putFloat("speed",speeds[i].toFloat()).apply();service?.configure()}.show()}
         elapsed=TextView(this);root.addView(elapsed);progress=SeekBar(this);root.addView(progress)
         progress.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener{
             override fun onProgressChanged(s:SeekBar?,n:Int,user:Boolean){}
