@@ -21,12 +21,38 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  val days=EditText(this).apply{setText("1234567")};root.addView(days)
  label("Actions: one ACTION|value per line. Multiple lines = multiple actions.")
  val actions=EditText(this).apply{minLines=4;hint="WEB|https://quran.com/2\nAUDIO|https://example.com/audio.mp3\nNOTE|Drink water"};root.addView(actions)
+ root.addView(Button(this).apply{text="Choose time · সময়";setOnClickListener{
+  val now=java.util.Calendar.getInstance()
+  android.app.TimePickerDialog(this@AdvancedActivity,{_,h,m->time.setText(java.lang.String.format(java.util.Locale.ROOT,"%02d:%02d",h,m))},now.get(11),now.get(12),true).show()
+ }})
+ root.addView(Button(this).apply{text="Select weekdays · দিন";setOnClickListener{
+  val checked=BooleanArray(7){(it+1).toString() in days.text.toString()}
+  android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle("Weekdays").setMultiChoiceItems(arrayOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"),checked){_,i,on->checked[i]=on}
+   .setPositiveButton("Apply"){_,_->days.setText(checked.indices.filter{checked[it]}.joinToString(""){(it+1).toString()})}.setNegativeButton("Cancel",null).show()
+ }})
+ root.addView(Button(this).apply{text="Add action · কাজ যোগ করুন";setOnClickListener{
+  val types=arrayOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE")
+  val labels=arrayOf("Open website","Play audio","Open Wi-Fi settings","Open dialer","Prepare WhatsApp","Show reminder")
+  android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle("Then…").setItems(labels){_,index->
+   fun append(value:String){actions.setText(listOf(actions.text.toString().trim(),types[index]+"|"+value).filter{it.isNotEmpty()}.joinToString("\n"))}
+   if(types[index]=="WIFI")append("settings") else {
+    val input=EditText(this@AdvancedActivity).apply{setSingleLine();hint=when(index){0,1->"https://";3,4->"+880…";else->"Reminder text"}}
+    android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle(labels[index]).setView(input).setPositiveButton("Add"){_,_->append(input.text.toString().trim())}.setNegativeButton("Cancel",null).show()
+   }
+  }.show()
+ }})
  val info=TextView(this).apply{text="Supported: WEB, AUDIO, WIFI, DIAL, WHATSAPP, NOTE. Audio URLs must point to playable HTTPS audio files. Actions requiring user interaction open from notifications."};root.addView(info)
  val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
  fun clear(){editing=null;name.text.clear();time.text.clear();days.setText("1234567");actions.text.clear()}
  fun refresh(){list.removeAllViews();AdvancedRules.load(this).forEach{r->
   list.addView(TextView(this).apply{text="${r.name} · %02d:%02d · days ${r.days} · ${if(r.enabled)"ON" else "OFF"}".format(r.hour,r.minute);textSize=16f;setPadding(0,15,0,5)})
   fun button(t:String,cb:()->Unit){list.addView(Button(this).apply{text=t;setOnClickListener{cb()}})}
+  button("Duplicate · কপি") {
+   val rules=AdvancedRules.load(this)
+   val used=rules.map{it.id}.toSet()
+   AdvancedRules.save(this,rules+r.copy(id=(1..Int.MAX_VALUE).first{it !in used},name=r.name+" (copy)",enabled=false))
+   refresh()
+  }
   button("Edit") {editing=r.id;name.setText(r.name);time.setText("%02d:%02d".format(r.hour,r.minute));days.setText(r.days);actions.setText(r.actions)}
   button(if(r.enabled)"Disable" else "Enable") {AdvancedRules.save(this,AdvancedRules.load(this).map{if(it.id==r.id)it.copy(enabled=!it.enabled)else it});refresh()}
   button("Run now (notifications)"){AdvancedRules.execute(this,r)}
@@ -46,6 +72,10 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  }})
  root.addView(Button(this).apply{text="Open exact alarm permission settings (Android 12+)";setOnClickListener{
   if(android.os.Build.VERSION.SDK_INT>=31)try{startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).setData(android.net.Uri.parse("package:$packageName")))}catch(_:Exception){}
+ }})
+ root.addView(Button(this).apply{text="Execution history · ইতিহাস";setOnClickListener{
+  val entries=AdvancedRules.history(this@AdvancedActivity)
+  android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle("Recent activity").setMessage(entries.joinToString("\n\n").ifEmpty{"No executions yet"}).setPositiveButton("OK",null).show()
  }})
  label("Saved rules");root.addView(list);refresh()
  }
