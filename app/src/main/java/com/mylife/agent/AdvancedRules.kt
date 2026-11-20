@@ -17,12 +17,12 @@ import java.util.Calendar
  *  No automatic external messages, browser autoplay, or silent device settings changes.
  */
 data class AdvancedRule(val id:Int,val name:String,val hour:Int,val minute:Int,val days:String,
-                        val actions:String,val enabled:Boolean=true,val event:String="TIME",val date:String="",val condition:String="",val description:String="") {
+                        val actions:String,val enabled:Boolean=true,val event:String="TIME",val date:String="",val condition:String="",val description:String="",val folder:String="General") {
  val steps get()=ActionCatalog.parse(actions)
  fun toJson()=JSONObject().put("version",2).put("steps",JSONArray().apply{steps.forEach{put(it.json())}}).put("id",id).put("name",name).put("hour",hour).put("minute",minute)
-  .put("event",event).put("date",date).put("condition",condition).put("description",description).put("days",days).put("actions",actions).put("enabled",enabled)
+  .put("event",event).put("date",date).put("condition",condition).put("description",description).put("folder",folder).put("days",days).put("actions",actions).put("enabled",enabled)
  companion object { fun parse(o:JSONObject)=AdvancedRule(o.getInt("id"),o.getString("name"),o.getInt("hour"),
-  o.getInt("minute"),o.optString("days","1234567"),o.optJSONArray("steps")?.let{ActionCatalog.decode(it)} ?: o.getString("actions"),o.optBoolean("enabled",true),o.optString("event","TIME"),o.optString("date"),o.optString("condition"),o.optString("description")) }
+  o.getInt("minute"),o.optString("days","1234567"),o.optJSONArray("steps")?.let{ActionCatalog.decode(it)} ?: o.getString("actions"),o.optBoolean("enabled",true),o.optString("event","TIME"),o.optString("date"),o.optString("condition"),o.optString("description"),o.optString("folder","General")) }
 }
 object AdvancedRules {
  private const val PREF="mylife_advanced_v12"
