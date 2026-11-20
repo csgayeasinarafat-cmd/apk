@@ -32,7 +32,18 @@ object AdvancedRules {
    db.execSQL("CREATE TABLE history(id INTEGER PRIMARY KEY, stamp INTEGER, name TEXT, detail TEXT)")
    val previous=prefs.getString("items",null)
    val initial=if(previous==null) listOf(AdvancedRule(12001,"Morning Surah Al-Baqarah",7,0,"1234567","WEB|https://quran.com/2",false))
-    else JSONArray(previous).let { array -> (0 until array.length()).map { AdvancedRule.parse(array.getJSONObject(it)) } }
+    else runCatching {
+     val array=JSONArray(previous)
+     (0 until array.length()).mapNotNull { index ->
+      runCatching{AdvancedRule.parse(array.getJSONObject(index))}.getOrElse {
+       db.execSQL("INSERT INTO history(stamp,name,detail) VALUES (?,?,?)",arrayOf(System.currentTimeMillis(),"Migration","Unreadable legacy rule at index "+index))
+       null
+      }
+     }.distinctBy{it.id}
+    }.getOrElse {
+     db.execSQL("INSERT INTO history(stamp,name,detail) VALUES (?,?,?)",arrayOf(System.currentTimeMillis(),"Migration","Legacy data unreadable; original preferences retained"))
+     emptyList()
+    }
    initial.forEach { db.execSQL("INSERT INTO rules VALUES (?,?)",arrayOf(it.id,it.toJson().toString())) }
   }
   override fun onUpgrade(db:SQLiteDatabase,oldVersion:Int,newVersion:Int)=Unit
