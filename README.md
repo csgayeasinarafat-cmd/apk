@@ -19,11 +19,13 @@
 - Day/time logic uses phone local timezone.
 - AND/OR support is **limited**: time AND allowed weekdays; weekdays are OR; actions are multiple parallel notifications. Arbitrary nested Boolean conditions and event triggers are not implemented.
 
-## Build
-1. Install Android Studio, JDK 17, Android SDK platform 35.
-2. Open this folder, allow Gradle sync, build debug APK.
-3. `Build > Build Bundle(s) / APK(s) > Build APK(s)`; output `app/build/outputs/apk/debug/app-debug.apk`.
-4. Test on physical Huawei Y8p, especially scheduling, reboot, notifications and audio.
+## Build and install the APK
 
-## Status
-Source project only. No Android SDK or Gradle executable was available in the creation environment, so compilation, APK generation and device testing were NOT performed.
+1. Open [Build MyLife AI APK](https://github.com/csgayeasinarafat-cmd/apk/actions/workflows/android.yml) in GitHub Actions.
+2. To build again, choose **Run workflow** on the `main` branch. A push to `main` also starts a build.
+3. Open the successful run and download **MyLifeAI-debug-APK** from **Artifacts**.
+4. Unzip the download, transfer `app-debug.apk` to the phone, and open it to install.
+
+GitHub Actions builds the debug APK with Java 17, Gradle 8.7, and Android SDK 35. The workflow verifies the APK signature and launches the app on an Android 10 emulator. Test scheduling, reboot, notifications, and audio on the Huawei Y8p to verify behavior under EMUI.
+
+For a local build with the same tools, run `gradle assembleDebug`. The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
