@@ -131,9 +131,10 @@ class PlayerActivity : Activity() {
         override fun run(){
             val end=service?.duration()?:0
             val pos=service?.position()?:0
-            if(!progress.isPressed){progress.max=end;progress.progress=pos}
-            elapsed.text="%d:%02d / %d:%02d".format(pos/60000,pos/1000%60,end/60000,end/1000%60)
-            handler.postDelayed(this,500)
+            if(!progress.isPressed){if(progress.max!=end)progress.max=end;if(progress.progress!=pos)progress.progress=pos}
+            val display="%d:%02d / %d:%02d".format(pos/60000,pos/1000%60,end/60000,end/1000%60)
+            if(elapsed.text.toString()!=display)elapsed.text=display
+            handler.postDelayed(this,1500)
         }
     }
     private fun library()=JSONObject(prefs.getString("recordings","{}") ?: "{}").apply { if(!has(RECITATION))put(RECITATION,RECITATION_URL) }
