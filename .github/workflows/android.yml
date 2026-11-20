@@ -46,3 +46,20 @@ jobs:
           name: MyLifeAI-debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Enable emulator hardware acceleration
+        run: sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+
+      - name: Launch app on Android 10
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808 # v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n com.mylife.agent/.MainActivity | grep -F 'Status: ok'
+            adb shell pidof com.mylife.agent
+            adb shell uiautomator dump /sdcard/mylife-window.xml
+            adb shell cat /sdcard/mylife-window.xml | grep -Fq 'text="MyLife AI"'
