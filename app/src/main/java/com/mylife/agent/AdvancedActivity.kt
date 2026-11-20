@@ -30,15 +30,18 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
   button("Edit") {editing=r.id;name.setText(r.name);time.setText("%02d:%02d".format(r.hour,r.minute));days.setText(r.days);actions.setText(r.actions)}
   button(if(r.enabled)"Disable" else "Enable") {AdvancedRules.save(this,AdvancedRules.load(this).map{if(it.id==r.id)it.copy(enabled=!it.enabled)else it});refresh()}
   button("Run now (notifications)"){AdvancedRules.execute(this,r)}
-  button("Delete") {AdvancedRules.save(this,AdvancedRules.load(this).filterNot{it.id==r.id});refresh()}
+  button("Delete") {AdvancedRules.remove(this,r.id);if(editing==r.id)clear();refresh()}
  }}
  root.addView(Button(this).apply{text="Save rule";setOnClickListener{
-  val parts=time.text.toString().split(":");val h=parts.getOrNull(0)?.toIntOrNull();val m=parts.getOrNull(1)?.toIntOrNull();val d=days.text.toString()
-  if(name.text.isBlank()||h==null||m==null||h !in 0..23||m !in 0..59||d.isEmpty()||d.any{it !in '1'..'7'}||!AdvancedRules.validActions(actions.text.toString())){
+  val parts=time.text.toString().trim().split(":");val h=parts.getOrNull(0)?.toIntOrNull();val m=parts.getOrNull(1)?.toIntOrNull();val d=days.text.toString()
+  if(name.text.isBlank()||parts.size!=2||h==null||m==null||h !in 0..23||m !in 0..59||d.isEmpty()||d.any{it !in '1'..'7'}||!AdvancedRules.validActions(actions.text.toString())){
    Toast.makeText(this@AdvancedActivity,"Check name, time, days and ACTION|value syntax",Toast.LENGTH_LONG).show();return@setOnClickListener}
-  val id=editing?:((System.currentTimeMillis()%1000000000).toInt().coerceAtLeast(1))
-  val r=AdvancedRule(id,name.text.toString(),h,m,d,actions.text.toString().trim(),true)
-  AdvancedRules.save(this@AdvancedActivity,AdvancedRules.load(this@AdvancedActivity).filterNot{it.id==id}+r)
+  val existing=AdvancedRules.load(this@AdvancedActivity)
+  val previous=existing.find{it.id==editing}
+  val usedIds=existing.map{it.id}.toSet()
+  val id=previous?.id?:(1..Int.MAX_VALUE).first{it !in usedIds}
+  val r=AdvancedRule(id,name.text.toString().trim(),h,m,d,actions.text.toString().trim(),previous?.enabled?:true)
+  AdvancedRules.save(this@AdvancedActivity,existing.filterNot{it.id==id}+r)
   clear();refresh();Toast.makeText(this@AdvancedActivity,"Rule saved",Toast.LENGTH_SHORT).show()
  }})
  root.addView(Button(this).apply{text="Open exact alarm permission settings (Android 12+)";setOnClickListener{
