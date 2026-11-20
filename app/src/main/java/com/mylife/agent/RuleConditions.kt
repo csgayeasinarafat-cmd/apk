@@ -13,6 +13,28 @@ object RuleConditions {
     val events=linkedMapOf("TIME" to "Scheduled time","DATE" to "Specific date","MANUAL" to "Manual / voice","BOOT" to "Device restart",
         "POWER_ON" to "Charging connected","POWER_OFF" to "Charging disconnected","BATTERY" to "Battery level changed",
         "APP_OPEN" to "App opened (periodic check)","ARRIVE" to "Location arrival","DEPART" to "Location departure","NOTIFICATION" to "Notification from package","BT_ON" to "Bluetooth device connected","BT_OFF" to "Bluetooth device disconnected","NETWORK" to "Network changed","WIFI" to "Wi-Fi changed")
+    fun valid(expression:String):Boolean {
+        if(expression.isBlank())return true
+        if(expression.length>16000)return false
+        fun check(node:JSONObject,depth:Int):Boolean {
+            if(depth>12)return false
+            return when(node.getString("op")){
+                "AND","OR","NOT"->{
+                    val kids=node.getJSONArray("children")
+                    val arity=if(node.getString("op")=="NOT")1..1 else 2..32
+                    kids.length() in arity && (0 until kids.length()).all{check(kids.getJSONObject(it),depth+1)}
+                }
+                "BATTERY"->node.getInt("value") in 0..100
+                "TIME"->node.getInt("from") in 0..1439 && node.getInt("to") in 0..1439
+                "DAYS"->node.getString("value").matches(Regex("[1-7]{1,7}"))
+                "FLAG"->node.getString("value").isNotBlank()
+                "AREA"->{OptionalEvents.area(node.getString("value"));true}
+                "WIFI","ONLINE","CHARGING"->true
+                else->false
+            }
+        }
+        return runCatching{check(JSONObject(expression),0)}.getOrDefault(false)
+    }
     fun matches(context:Context, expression:String):Boolean {
         if(expression.isBlank())return true
         val battery=context.registerReceiver(null,IntentFilter(Intent.ACTION_BATTERY_CHANGED))
