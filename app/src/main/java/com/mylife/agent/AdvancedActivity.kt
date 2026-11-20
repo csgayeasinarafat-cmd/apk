@@ -19,7 +19,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  val description=EditText(this).apply{hint="Description"};root.addView(description)
  val events=RuleConditions.events.keys.toList()
  val trigger=Spinner(this).apply{adapter=ArrayAdapter(this@AdvancedActivity,android.R.layout.simple_spinner_dropdown_item,RuleConditions.events.values.toList())};root.addView(trigger)
- val date=EditText(this).apply{hint="Date / Bluetooth device name / notification package"};root.addView(date)
+ val date=EditText(this).apply{hint="Date, package, device name or lat,lon,radius"};root.addView(date)
  var condition=""
  val cond=Button(this).apply{text="Condition · Always"};root.addView(cond)
  cond.setOnClickListener{RuleConditions.edit(this,condition){condition=it;cond.text="Condition · "+RuleConditions.describe(it)}}
@@ -38,12 +38,12 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
    .setPositiveButton("Apply"){_,_->days.setText(checked.indices.filter{checked[it]}.joinToString(""){(it+1).toString()})}.setNegativeButton("Cancel",null).show()
  }})
  root.addView(Button(this).apply{text="Add action · কাজ যোগ করুন";setOnClickListener{
-  val types=arrayOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM")
-  val labels=arrayOf("Open website","Play audio","Open Wi-Fi settings","Open dialer","Prepare WhatsApp","Show reminder","Bluetooth settings","Quran player","Create clock alarm")
+  val types=arrayOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM","APP","DELAY","RULE","PAUSE","STOP","SPEAK")
+  val labels=arrayOf("Open website","Play audio","Open Wi-Fi settings","Open dialer","Prepare WhatsApp","Show reminder","Bluetooth settings","Quran player","Create clock alarm","Open application (package)","Delay (seconds)","Run automation (ID)","Pause audio","Stop audio","Speak text")
   android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle("Then…").setItems(labels){_,index->
    fun append(value:String){actions.setText(listOf(actions.text.toString().trim(),types[index]+"|"+value).filter{it.isNotEmpty()}.joinToString("\n"))}
-   if(types[index] in setOf("WIFI","BLUETOOTH","QURAN","ALARM"))append("settings") else {
-    val input=EditText(this@AdvancedActivity).apply{setSingleLine();hint=when(index){0,1->"https://";3,4->"+880…";else->"Reminder text"}}
+   if(types[index] in setOf("WIFI","BLUETOOTH","QURAN","ALARM","PAUSE","STOP"))append("settings") else {
+    val input=EditText(this@AdvancedActivity).apply{setSingleLine();hint=when(index){0,1->"https://";3,4->"+880…";9->"com.example.app";10->"Seconds (1–86400)";11->"Rule ID";else->"Text"}}
     android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle(labels[index]).setView(input).setPositiveButton("Add"){_,_->append(input.text.toString().trim())}.setNegativeButton("Cancel",null).show()
    }
   }.show()
@@ -52,7 +52,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
  fun clear(){editing=null;description.text.clear();trigger.setSelection(0);date.text.clear();condition="";cond.text="Condition · Always";name.text.clear();time.text.clear();days.setText("1234567");actions.text.clear()}
  fun refresh(){list.removeAllViews();AdvancedRules.load(this).forEach{r->
-  list.addView(TextView(this).apply{text="${r.name} · %02d:%02d · days ${r.days} · ${if(r.enabled)"ON" else "OFF"}".format(r.hour,r.minute);textSize=16f;setPadding(0,15,0,5)})
+  list.addView(TextView(this).apply{text="#${r.id} ${r.name} · %02d:%02d · days ${r.days} · ${if(r.enabled)"ON" else "OFF"}".format(r.hour,r.minute);textSize=16f;setPadding(0,15,0,5)})
   fun button(t:String,cb:()->Unit){list.addView(Button(this).apply{text=t;setOnClickListener{cb()}})}
   button("Duplicate · কপি") {
    val rules=AdvancedRules.load(this)
@@ -66,7 +66,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
   button("Delete") {AdvancedRules.remove(this,r.id);if(editing==r.id)clear();refresh()}
  }}
  root.addView(Button(this).apply{text="Save rule";setOnClickListener{
-  val event=events[trigger.selectedItemPosition];val day=date.text.toString().trim();if(event=="DATE" && runCatching{java.time.LocalDate.parse(day)}.isFailure){Toast.makeText(this@AdvancedActivity,"Enter YYYY-MM-DD",Toast.LENGTH_SHORT).show();return@setOnClickListener};val parts=(if(event in setOf("TIME","DATE"))time.text.toString().trim() else "00:00").split(":");val h=parts.getOrNull(0)?.toIntOrNull();val m=parts.getOrNull(1)?.toIntOrNull();val d=days.text.toString()
+  val event=events[trigger.selectedItemPosition];val day=date.text.toString().trim();if(event in setOf("ARRIVE","DEPART") && runCatching{OptionalEvents.area(day)}.isFailure){Toast.makeText(this@AdvancedActivity,"Enter latitude,longitude,radius in metres",0).show();return@setOnClickListener};if(event in setOf("BT_ON","BT_OFF","APP_OPEN","NOTIFICATION") && day.isBlank()){Toast.makeText(this@AdvancedActivity,"Enter package or device name",0).show();return@setOnClickListener};if(event=="DATE" && runCatching{java.time.LocalDate.parse(day)}.isFailure){Toast.makeText(this@AdvancedActivity,"Enter YYYY-MM-DD",Toast.LENGTH_SHORT).show();return@setOnClickListener};val parts=(if(event in setOf("TIME","DATE"))time.text.toString().trim() else "00:00").split(":");val h=parts.getOrNull(0)?.toIntOrNull();val m=parts.getOrNull(1)?.toIntOrNull();val d=days.text.toString()
   if(name.text.isBlank()||parts.size!=2||h==null||m==null||h !in 0..23||m !in 0..59||d.isEmpty()||d.any{it !in '1'..'7'}||!AdvancedRules.validActions(actions.text.toString())){
    Toast.makeText(this@AdvancedActivity,"Check name, time, days and ACTION|value syntax",Toast.LENGTH_LONG).show();return@setOnClickListener}
   val existing=AdvancedRules.load(this@AdvancedActivity)
