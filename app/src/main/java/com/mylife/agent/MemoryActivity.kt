@@ -21,9 +21,9 @@ class MemoryActivity:Activity(){
         page.addView(TextView(this).apply{text="Personal memory · ব্যক্তিগত তথ্য";textSize=24f})
         category=Spinner(this).apply{adapter=ArrayAdapter(this@MemoryActivity,android.R.layout.simple_spinner_dropdown_item,kinds)};page.addView(category)
         if(intent.getBooleanExtra("contacts",false))category.setSelection(0)
-        name=EditText(this).apply{hint="Name / nickname"};page.addView(name)
-        value=EditText(this).apply{hint="Value / phone / message"};page.addView(value)
-        fun btn(label:String,run:()->Unit){page.addView(Button(this).apply{text=label;setOnClickListener{run()}})}
+        name=EditText(this).apply{hint=this@MemoryActivity.uiLabel("Name / nickname")};page.addView(name)
+        value=EditText(this).apply{hint=this@MemoryActivity.uiLabel("Value / phone / message")};page.addView(value)
+        fun btn(label:String,run:()->Unit){page.addView(Button(this).apply{text=this@MemoryActivity.uiLabel(label);setOnClickListener{run()}})}
         btn("Save · সংরক্ষণ"){
             val n=name.text.toString().trim();val v=value.text.toString().trim()
             if(n.isEmpty() || v.isEmpty())return@btn
@@ -43,9 +43,9 @@ class MemoryActivity:Activity(){
     private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_LONG).show()
     private fun refresh(){list.removeAllViews();store.all.filterKeys{!intent.getBooleanExtra("contacts",false)||it.startsWith("Contact/")}.toSortedMap().forEach{(k,v)->
         list.addView(Button(this).apply{text=k;setOnClickListener{
-            AlertDialog.Builder(this@MemoryActivity).setTitle(k).setMessage(v.toString()).setPositiveButton("Edit"){_,_->
+            AlertDialog.Builder(this@MemoryActivity).setTitle(k).setMessage(v.toString()).setPositiveButton(this@MemoryActivity.uiLabel("Edit")){_,_->
                 category.setSelection(kinds.indexOf(k.substringBefore('/')).coerceAtLeast(0));name.setText(k.substringAfter('/'));value.setText(v.toString());editing=k
-            }.setNegativeButton("Delete"){_,_->store.edit().remove(k).apply();reset();refresh()}.setNeutralButton("Close",null).show()
+            }.setNegativeButton(this@MemoryActivity.uiLabel("Delete")){_,_->store.edit().remove(k).apply();reset();refresh()}.setNeutralButton(this@MemoryActivity.uiLabel("Close"),null).show()
         }})
     }}
     override fun onActivityResult(request:Int,result:Int,data:Intent?){
@@ -77,7 +77,7 @@ class MemoryActivity:Activity(){
                     .setPositiveButton("Import"){_,_-> val current=AdvancedRules.load(this);val ids=current.map{it.id}.toSet()
                         AdvancedRules.save(this,current+imports.distinctBy{it.id}.filterNot{it.id in ids}.map{it.copy(enabled=false)})
                         store.edit().apply{values.filterKeys{!store.contains(it)}.forEach{(k,v)->putString(k,v)}}.apply();refresh()
-                    }.setNegativeButton("Cancel",null).show()
+                    }.setNegativeButton(this@MemoryActivity.uiLabel("Cancel"),null).show()
             }
         }.onFailure {toast("Backup could not be read or written")}
     }
