@@ -23,6 +23,16 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  var condition=""
  val cond=Button(this).apply{text="Condition · Always"};root.addView(cond)
  cond.setOnClickListener{RuleConditions.edit(this,condition){condition=it;cond.text="Condition · "+RuleConditions.describe(it)}}
+ val delivery=TextView(this);root.addView(delivery)
+ trigger.onItemSelectedListener=object:android.widget.AdapterView.OnItemSelectedListener{
+  override fun onNothingSelected(parent:android.widget.AdapterView<*>?){}
+  override fun onItemSelected(parent:android.widget.AdapterView<*>?,view:android.view.View?,position:Int,id:Long){
+   val type=events[position]
+   date.visibility=if(type in setOf("DATE","APP_OPEN","NOTIFICATION","BT_ON","BT_OFF","ARRIVE","DEPART"))android.view.View.VISIBLE else android.view.View.GONE
+   date.hint=when(type){"DATE"->"YYYY-MM-DD";"BT_ON","BT_OFF"->"Bluetooth device name";"ARRIVE","DEPART"->"Latitude, longitude, radius (metres)";else->"Android package name"}
+   delivery.text=when(type){"BATTERY","POWER_ON","POWER_OFF","WIFI","NETWORK"->"Observed while MyLife's process is running.";"APP_OPEN"->"Periodic check. Enable usage access in Permissions.";"ARRIVE","DEPART"->"Allow location access in the background.";"NOTIFICATION"->"Enable notification access. Only the package name is matched.";else->""}
+  }
+ }
  val time=EditText(this).apply{hint="HH:mm (24h)"};root.addView(time)
  label("Days: 1=Mon, 2=Tue ... 7=Sun. Examples: 1234567 / 135")
  val days=EditText(this).apply{setText("1234567")};root.addView(days)
@@ -48,7 +58,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
    }
   }.show()
  }})
- val info=TextView(this).apply{text="Supported: WEB, AUDIO, WIFI, DIAL, WHATSAPP, NOTE. Audio URLs must point to playable HTTPS audio files. Actions requiring user interaction open from notifications."};root.addView(info)
+ val info=TextView(this).apply{text="Actions appear in order. External apps open when you tap their notifications. Add a Delay to wait between steps."};root.addView(info)
  val search=EditText(this).apply{hint="Find by name or description · খুঁজুন"}
  val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
  fun clear(){editing=null;description.text.clear();trigger.setSelection(0);date.text.clear();condition="";cond.text="Condition · Always";name.text.clear();time.text.clear();days.setText("1234567");actions.text.clear()}
@@ -68,7 +78,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  }}
  root.addView(Button(this).apply{text="Save rule";setOnClickListener{
   val event=events[trigger.selectedItemPosition];val day=date.text.toString().trim();if(event in setOf("ARRIVE","DEPART") && runCatching{OptionalEvents.area(day)}.isFailure){Toast.makeText(this@AdvancedActivity,"Enter latitude,longitude,radius in metres",0).show();return@setOnClickListener};if(event in setOf("BT_ON","BT_OFF","APP_OPEN","NOTIFICATION") && day.isBlank()){Toast.makeText(this@AdvancedActivity,"Enter package or device name",0).show();return@setOnClickListener};if(event=="DATE" && runCatching{java.time.LocalDate.parse(day)}.isFailure){Toast.makeText(this@AdvancedActivity,"Enter YYYY-MM-DD",Toast.LENGTH_SHORT).show();return@setOnClickListener};val parts=(if(event in setOf("TIME","DATE"))time.text.toString().trim() else "00:00").split(":");val h=parts.getOrNull(0)?.toIntOrNull();val m=parts.getOrNull(1)?.toIntOrNull();val d=days.text.toString()
-  if(name.text.isBlank()||parts.size!=2||h==null||m==null||h !in 0..23||m !in 0..59||d.isEmpty()||d.any{it !in '1'..'7'}||!AdvancedRules.validActions(actions.text.toString())){
+  if(name.text.isBlank()||parts.size!=2||h==null||m==null||h !in 0..23||m !in 0..59||d.isEmpty()||d.any{it !in '1'..'7'}||!RuleConditions.valid(condition)||!AdvancedRules.validActions(actions.text.toString())){
    Toast.makeText(this@AdvancedActivity,"Check name, time, days and ACTION|value syntax",Toast.LENGTH_LONG).show();return@setOnClickListener}
   val existing=AdvancedRules.load(this@AdvancedActivity)
   val previous=existing.find{it.id==editing}
