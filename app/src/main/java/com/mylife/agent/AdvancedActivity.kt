@@ -16,6 +16,13 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  label("MyLife AI · Advanced Rule Builder")
  label("IF time AND selected weekdays → THEN all actions")
  val name=EditText(this).apply{hint="Rule name"};root.addView(name)
+ val description=EditText(this).apply{hint="Description"};root.addView(description)
+ val events=RuleConditions.events.keys.toList()
+ val trigger=Spinner(this).apply{adapter=ArrayAdapter(this@AdvancedActivity,android.R.layout.simple_spinner_dropdown_item,RuleConditions.events.values.toList())};root.addView(trigger)
+ val date=EditText(this).apply{hint="Date / Bluetooth device name / notification package"};root.addView(date)
+ var condition=""
+ val cond=Button(this).apply{text="Condition · Always"};root.addView(cond)
+ cond.setOnClickListener{RuleConditions.edit(this,condition){condition=it;cond.text="Condition · "+RuleConditions.describe(it)}}
  val time=EditText(this).apply{hint="HH:mm (24h)"};root.addView(time)
  label("Days: 1=Mon, 2=Tue ... 7=Sun. Examples: 1234567 / 135")
  val days=EditText(this).apply{setText("1234567")};root.addView(days)
@@ -31,11 +38,11 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
    .setPositiveButton("Apply"){_,_->days.setText(checked.indices.filter{checked[it]}.joinToString(""){(it+1).toString()})}.setNegativeButton("Cancel",null).show()
  }})
  root.addView(Button(this).apply{text="Add action · কাজ যোগ করুন";setOnClickListener{
-  val types=arrayOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE")
-  val labels=arrayOf("Open website","Play audio","Open Wi-Fi settings","Open dialer","Prepare WhatsApp","Show reminder")
+  val types=arrayOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM")
+  val labels=arrayOf("Open website","Play audio","Open Wi-Fi settings","Open dialer","Prepare WhatsApp","Show reminder","Bluetooth settings","Quran player","Create clock alarm")
   android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle("Then…").setItems(labels){_,index->
    fun append(value:String){actions.setText(listOf(actions.text.toString().trim(),types[index]+"|"+value).filter{it.isNotEmpty()}.joinToString("\n"))}
-   if(types[index]=="WIFI")append("settings") else {
+   if(types[index] in setOf("WIFI","BLUETOOTH","QURAN","ALARM"))append("settings") else {
     val input=EditText(this@AdvancedActivity).apply{setSingleLine();hint=when(index){0,1->"https://";3,4->"+880…";else->"Reminder text"}}
     android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle(labels[index]).setView(input).setPositiveButton("Add"){_,_->append(input.text.toString().trim())}.setNegativeButton("Cancel",null).show()
    }
@@ -43,7 +50,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  }})
  val info=TextView(this).apply{text="Supported: WEB, AUDIO, WIFI, DIAL, WHATSAPP, NOTE. Audio URLs must point to playable HTTPS audio files. Actions requiring user interaction open from notifications."};root.addView(info)
  val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
- fun clear(){editing=null;name.text.clear();time.text.clear();days.setText("1234567");actions.text.clear()}
+ fun clear(){editing=null;description.text.clear();trigger.setSelection(0);date.text.clear();condition="";cond.text="Condition · Always";name.text.clear();time.text.clear();days.setText("1234567");actions.text.clear()}
  fun refresh(){list.removeAllViews();AdvancedRules.load(this).forEach{r->
   list.addView(TextView(this).apply{text="${r.name} · %02d:%02d · days ${r.days} · ${if(r.enabled)"ON" else "OFF"}".format(r.hour,r.minute);textSize=16f;setPadding(0,15,0,5)})
   fun button(t:String,cb:()->Unit){list.addView(Button(this).apply{text=t;setOnClickListener{cb()}})}
@@ -53,20 +60,20 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
    AdvancedRules.save(this,rules+r.copy(id=(1..Int.MAX_VALUE).first{it !in used},name=r.name+" (copy)",enabled=false))
    refresh()
   }
-  button("Edit") {editing=r.id;name.setText(r.name);time.setText("%02d:%02d".format(r.hour,r.minute));days.setText(r.days);actions.setText(r.actions)}
+  button("Edit") {editing=r.id;description.setText(r.description);trigger.setSelection(events.indexOf(r.event).coerceAtLeast(0));date.setText(r.date);condition=r.condition;cond.text="Condition · "+RuleConditions.describe(condition);name.setText(r.name);time.setText("%02d:%02d".format(r.hour,r.minute));days.setText(r.days);actions.setText(r.actions)}
   button(if(r.enabled)"Disable" else "Enable") {AdvancedRules.save(this,AdvancedRules.load(this).map{if(it.id==r.id)it.copy(enabled=!it.enabled)else it});refresh()}
   button("Run now (notifications)"){AdvancedRules.execute(this,r)}
   button("Delete") {AdvancedRules.remove(this,r.id);if(editing==r.id)clear();refresh()}
  }}
  root.addView(Button(this).apply{text="Save rule";setOnClickListener{
-  val parts=time.text.toString().trim().split(":");val h=parts.getOrNull(0)?.toIntOrNull();val m=parts.getOrNull(1)?.toIntOrNull();val d=days.text.toString()
+  val event=events[trigger.selectedItemPosition];val day=date.text.toString().trim();if(event=="DATE" && runCatching{java.time.LocalDate.parse(day)}.isFailure){Toast.makeText(this@AdvancedActivity,"Enter YYYY-MM-DD",Toast.LENGTH_SHORT).show();return@setOnClickListener};val parts=(if(event in setOf("TIME","DATE"))time.text.toString().trim() else "00:00").split(":");val h=parts.getOrNull(0)?.toIntOrNull();val m=parts.getOrNull(1)?.toIntOrNull();val d=days.text.toString()
   if(name.text.isBlank()||parts.size!=2||h==null||m==null||h !in 0..23||m !in 0..59||d.isEmpty()||d.any{it !in '1'..'7'}||!AdvancedRules.validActions(actions.text.toString())){
    Toast.makeText(this@AdvancedActivity,"Check name, time, days and ACTION|value syntax",Toast.LENGTH_LONG).show();return@setOnClickListener}
   val existing=AdvancedRules.load(this@AdvancedActivity)
   val previous=existing.find{it.id==editing}
   val usedIds=existing.map{it.id}.toSet()
   val id=previous?.id?:(1..Int.MAX_VALUE).first{it !in usedIds}
-  val r=AdvancedRule(id,name.text.toString().trim(),h,m,d,actions.text.toString().trim(),previous?.enabled?:true)
+  val r=AdvancedRule(id,name.text.toString().trim(),h,m,d,actions.text.toString().trim(),previous?.enabled?:true,event,day,condition,description.text.toString())
   AdvancedRules.save(this@AdvancedActivity,existing.filterNot{it.id==id}+r)
   clear();refresh();Toast.makeText(this@AdvancedActivity,"Rule saved",Toast.LENGTH_SHORT).show()
  }})
