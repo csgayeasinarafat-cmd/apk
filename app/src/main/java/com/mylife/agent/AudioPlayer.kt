@@ -86,8 +86,8 @@ class AudioService : Service() {
     override fun onStartCommand(intent: Intent?, flags:Int, startId:Int):Int {
         when(intent?.action) {
             "STOP" -> finishPlayback()
-            "PAUSE" -> pause()
-            "RESUME" -> resume()
+            "PAUSE" -> if(player==null)stopSelf() else pause()
+            "RESUME" -> if(player==null)stopSelf() else resume()
             else -> {
                 val uri=Uri.parse(intent?.getStringExtra("url").orEmpty())
                 label=intent?.getStringExtra("title") ?: "Quran audio"
