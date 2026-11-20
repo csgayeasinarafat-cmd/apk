@@ -17,8 +17,16 @@ class MainActivity : Activity() {
  private lateinit var contact: EditText
  private lateinit var command: EditText
  private val speechCode=11
+ private var permissionState:List<Boolean>?=null
+ override fun onResume(){
+  super.onResume()
+  val current=listOf(OptionalEvents.hasLocation(this),checkSelfPermission(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)==0,OptionalEvents.usageAllowed(this))
+  if(permissionState!=null && permissionState!=current)AdvancedRules.reschedule(this)
+  permissionState=current
+  if(!intent.getBooleanExtra("legacy",false))Dashboard(this).show()
+ }
  override fun onCreate(savedInstanceState:Bundle?) { super.onCreate(savedInstanceState)
-  if(!intent.getBooleanExtra("legacy",false)){AdvancedRules.reschedule(this);AutomationEngine.rescheduleAll(this);if(getPreferences(0).getBoolean("wifi",false))RuleReceiver.schedule(this);Dashboard(this).show();return}
+  if(!intent.getBooleanExtra("legacy",false)){AdvancedRules.reschedule(this);ActionSequence.restore(this);AutomationEngine.rescheduleAll(this);if(getPreferences(0).getBoolean("wifi",false))RuleReceiver.schedule(this);return}
   val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,24,24,24); setBackgroundColor(Color.rgb(245,248,255)) }
   val scroll=ScrollView(this); scroll.addView(root); setContentView(scroll)
   fun heading(s:String,size:Float) { root.addView(TextView(this).apply { text=s; textSize=size; setTextColor(Color.rgb(20,51,110)); setPadding(0,12,0,12) }) }
@@ -31,7 +39,7 @@ class MainActivity : Activity() {
   heading("Command Center",20f)
   command=EditText(this).apply { hint="e.g. মাকে কল দাও / good morning / wifi" };root.addView(command)
   btn("Run command") { runCommand(command.text.toString()) }
-  btn("🎙 Speak Bangla / English") { try { startActivityForResult(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply { putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);putExtra(RecognizerIntent.EXTRA_LANGUAGE,"bn-BD") },speechCode) } catch(e:Exception){status.text="Speech recognition unavailable. Type a command instead."} }
+  btn("🎙 Speak Bangla / English") { startActivity(Intent(this,VoiceActivity::class.java)) }
   AutomationEngine.seed(this)
   AutomationEngine.rescheduleAll(this)
   AdvancedRules.reschedule(this)
