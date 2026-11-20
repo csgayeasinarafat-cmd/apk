@@ -41,7 +41,7 @@ class MemoryActivity:Activity(){
     }
     private fun reset(){editing=null;name.text.clear();value.text.clear()}
     private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_LONG).show()
-    private fun refresh(){list.removeAllViews();store.all.toSortedMap().forEach{(k,v)->
+    private fun refresh(){list.removeAllViews();store.all.filterKeys{!intent.getBooleanExtra("contacts",false)||it.startsWith("Contact/")}.toSortedMap().forEach{(k,v)->
         list.addView(Button(this).apply{text=k;setOnClickListener{
             AlertDialog.Builder(this@MemoryActivity).setTitle(k).setMessage(v.toString()).setPositiveButton("Edit"){_,_->
                 category.setSelection(kinds.indexOf(k.substringBefore('/')).coerceAtLeast(0));name.setText(k.substringAfter('/'));value.setText(v.toString());editing=k
