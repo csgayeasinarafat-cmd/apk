@@ -17,11 +17,11 @@ import java.util.Calendar
  *  No automatic external messages, browser autoplay, or silent device settings changes.
  */
 data class AdvancedRule(val id:Int,val name:String,val hour:Int,val minute:Int,val days:String,
-                        val actions:String,val enabled:Boolean=true) {
+                        val actions:String,val enabled:Boolean=true,val event:String="TIME",val date:String="",val condition:String="",val description:String="") {
  fun toJson()=JSONObject().put("id",id).put("name",name).put("hour",hour).put("minute",minute)
-  .put("days",days).put("actions",actions).put("enabled",enabled)
+  .put("event",event).put("date",date).put("condition",condition).put("description",description).put("days",days).put("actions",actions).put("enabled",enabled)
  companion object { fun parse(o:JSONObject)=AdvancedRule(o.getInt("id"),o.getString("name"),o.getInt("hour"),
-  o.getInt("minute"),o.optString("days","1234567"),o.getString("actions"),o.optBoolean("enabled",true)) }
+  o.getInt("minute"),o.optString("days","1234567"),o.getString("actions"),o.optBoolean("enabled",true),o.optString("event","TIME"),o.optString("date"),o.optString("condition"),o.optString("description")) }
 }
 object AdvancedRules {
  private const val PREF="mylife_advanced_v12"
@@ -73,15 +73,18 @@ object AdvancedRules {
  private fun pi(c:Context,id:Int)=PendingIntent.getBroadcast(c,id,Intent(c,AdvancedReceiver::class.java).putExtra("id",id),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
  fun reschedule(c:Context){load(c).forEach{schedule(c,it)}}
  fun schedule(c:Context,r:AdvancedRule){val a=alarm(c);val p=pi(c,r.id);a.cancel(p);if(!r.enabled)return
-  val now=Calendar.getInstance();val next=Calendar.getInstance().apply {set(Calendar.HOUR_OF_DAY,r.hour);set(Calendar.MINUTE,r.minute);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)}
-  for(i in 0..7){if(next.timeInMillis>now.timeInMillis && r.days.contains(((next.get(Calendar.DAY_OF_WEEK)+5)%7+1).toString()))break;next.add(Calendar.DAY_OF_YEAR,1)}
-  scheduleWakeup(a,next.timeInMillis,p)
+  if(r.event !in setOf("TIME","DATE"))return
+  val next=RuleLogic.next(java.time.ZonedDateTime.now(),r.hour,r.minute,r.days,if(r.event=="DATE")r.date else "")?:return
+  scheduleWakeup(a,next.toInstant().toEpochMilli(),p)
  }
  fun validActions(s:String):Boolean=s.lines().filter{it.isNotBlank()}.let{lines->lines.isNotEmpty() && lines.all{line->
-  val v=line.split('|',limit=2);v.size==2 && v[0] in listOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE") &&
+  val v=line.split('|',limit=2);v.size==2 && v[0] in listOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM") &&
   when(v[0]) {"WEB","AUDIO"->v[1].startsWith("https://") && android.util.Patterns.WEB_URL.matcher(v[1]).matches();"DIAL","WHATSAPP"->v[1].filter{it.isDigit()}.length>=7;else->true}
  }}
- fun execute(c:Context,r:AdvancedRule){val nm=c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+ fun fire(c:Context,event:String){load(c).filter{it.enabled && it.event==event}.forEach{execute(c,it)}}
+ fun execute(c:Context,r:AdvancedRule){
+  if(!RuleConditions.matches(c,r.condition)){record(c,r,"Skipped by condition");return}
+  val nm=c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
   if(Build.VERSION.SDK_INT>=26)nm.createNotificationChannel(NotificationChannel("advanced","MyLife automation rules",NotificationManager.IMPORTANCE_HIGH))
   if (!nm.areNotificationsEnabled() || nm.getNotificationChannel("advanced")?.importance==NotificationManager.IMPORTANCE_NONE) {
    record(c,r,"Notifications disabled");return
@@ -92,9 +95,12 @@ object AdvancedRules {
    val target=when(kind){
     "WEB"->Intent.createChooser(Intent(Intent.ACTION_VIEW,Uri.parse(value)),"Open website")
     "AUDIO"->Intent(c,PlayerActivity::class.java).putExtra("url",value)
+    "BLUETOOTH"->Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+    "QURAN"->Intent(c,PlayerActivity::class.java)
+    "ALARM"->Intent(android.provider.AlarmClock.ACTION_SET_ALARM).putExtra(android.provider.AlarmClock.EXTRA_HOUR,r.hour).putExtra(android.provider.AlarmClock.EXTRA_MINUTES,r.minute)
     "WIFI"->Intent(Settings.ACTION_WIFI_SETTINGS)
     "DIAL"->Intent(Intent.ACTION_DIAL,Uri.parse("tel:"+value.filter{it.isDigit()||it=='+'}))
-    "WHATSAPP"->Intent(Intent.ACTION_VIEW,Uri.parse("https://wa.me/"+value.filter{it.isDigit()}))
+    "WHATSAPP"->Intent(Intent.ACTION_VIEW,Uri.parse("https://wa.me/"+value.substringBefore('~').filter{it.isDigit()}+"?text="+Uri.encode(value.substringAfter('~',""))))
     else->Intent(c,MainActivity::class.java)
    }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
    target.identifier=notificationTag
@@ -109,4 +115,4 @@ object AdvancedRules {
 }
 class AdvancedReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){val id=i?.getIntExtra("id",-1)?:-1
  val r=AdvancedRules.load(c).firstOrNull{it.id==id && it.enabled}?:return;AdvancedRules.execute(c,r);AdvancedRules.schedule(c,r)}}
-class AdvancedBootReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){if(i?.action in listOf(Intent.ACTION_BOOT_COMPLETED,Intent.ACTION_TIME_CHANGED,Intent.ACTION_TIMEZONE_CHANGED,AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED))AdvancedRules.reschedule(c)}}
+class AdvancedBootReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){if(i?.action in listOf(Intent.ACTION_BOOT_COMPLETED,Intent.ACTION_TIME_CHANGED,Intent.ACTION_TIMEZONE_CHANGED,AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)){AdvancedRules.reschedule(c);if(i?.action==Intent.ACTION_BOOT_COMPLETED)AdvancedRules.fire(c,"BOOT")}}}
