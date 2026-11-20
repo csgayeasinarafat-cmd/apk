@@ -2,6 +2,8 @@ package com.mylife.agent
 
 import android.app.*
 import android.content.*
+import android.database.sqlite.SQLiteOpenHelper
+import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -23,19 +25,50 @@ data class AdvancedRule(val id:Int,val name:String,val hour:Int,val minute:Int,v
 }
 object AdvancedRules {
  private const val PREF="mylife_advanced_v12"
- fun load(c:Context):List<AdvancedRule> = try {val a=JSONArray(c.getSharedPreferences(PREF,0).getString("items","[]"));
-  (0 until a.length()).map { AdvancedRule.parse(a.getJSONObject(it)) }}catch(_:Exception){emptyList()}
- fun save(c:Context,items:List<AdvancedRule>){val a=JSONArray();items.forEach{a.put(it.toJson())};
-  c.getSharedPreferences(PREF,0).edit().putString("items",a.toString()).apply();reschedule(c)}
+ private class Store(context:Context):SQLiteOpenHelper(context,"automation.db",null,1) {
+  private val prefs=context.getSharedPreferences(PREF,0)
+  override fun onCreate(db:SQLiteDatabase) {
+   db.execSQL("CREATE TABLE rules(id INTEGER PRIMARY KEY, data TEXT NOT NULL)")
+   db.execSQL("CREATE TABLE history(id INTEGER PRIMARY KEY, stamp INTEGER, name TEXT, detail TEXT)")
+   val previous=prefs.getString("items",null)
+   val initial=if(previous==null) listOf(AdvancedRule(12001,"Morning Surah Al-Baqarah",7,0,"1234567","WEB|https://quran.com/2",false))
+    else JSONArray(previous).let { array -> (0 until array.length()).map { AdvancedRule.parse(array.getJSONObject(it)) } }
+   initial.forEach { db.execSQL("INSERT INTO rules VALUES (?,?)",arrayOf(it.id,it.toJson().toString())) }
+  }
+  override fun onUpgrade(db:SQLiteDatabase,oldVersion:Int,newVersion:Int)=Unit
+ }
+ @Volatile private var database:Store?=null
+ private fun db(c:Context):SQLiteDatabase = (database ?: synchronized(this) {
+  database ?: Store(c.applicationContext).also { database=it }
+ }).writableDatabase
+ fun load(c:Context):List<AdvancedRule> = db(c).rawQuery("SELECT data FROM rules ORDER BY id",null).use { cursor ->
+  buildList { while(cursor.moveToNext()) add(AdvancedRule.parse(JSONObject(cursor.getString(0)))) }
+ }
+ fun save(c:Context,items:List<AdvancedRule>) {
+  val storage=db(c)
+  storage.beginTransaction()
+  try {
+   storage.delete("rules",null,null)
+   items.forEach { storage.execSQL("INSERT INTO rules VALUES (?,?)",arrayOf(it.id,it.toJson().toString())) }
+   storage.setTransactionSuccessful()
+  } finally { storage.endTransaction() }
+  reschedule(c)
+ }
+ fun history(c:Context):List<String> = db(c).rawQuery("SELECT stamp,name,detail FROM history ORDER BY id DESC LIMIT 100",null).use { cursor ->
+  buildList { while(cursor.moveToNext()) add(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(cursor.getLong(0)))+" · "+cursor.getString(1)+" · "+cursor.getString(2)) }
+ }
+ private fun record(c:Context,r:AdvancedRule,detail:String) {
+  val storage=db(c)
+  storage.execSQL("INSERT INTO history(stamp,name,detail) VALUES (?,?,?)",arrayOf(System.currentTimeMillis(),r.name,detail))
+  storage.execSQL("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 100)")
+ }
  fun remove(c:Context,id:Int) {
   val pending=pi(c,id)
   alarm(c).cancel(pending)
   pending.cancel()
   save(c,load(c).filterNot { it.id==id })
  }
- fun seed(c:Context){if(!c.getSharedPreferences(PREF,0).contains("items"))save(c,listOf(
-  AdvancedRule(12001,"Morning Surah Al-Baqarah",7,0,"1234567",
-   "WEB|https://quran.com/2\nAUDIO|https://download.quranicaudio.com/quran/mishaari_raashid_al_3afaasee/002.mp3",false))) }
+ fun seed(c:Context){db(c)}
  private fun alarm(c:Context)=c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
  private fun pi(c:Context,id:Int)=PendingIntent.getBroadcast(c,id,Intent(c,AdvancedReceiver::class.java).putExtra("id",id),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
  fun reschedule(c:Context){load(c).forEach{schedule(c,it)}}
@@ -50,11 +83,14 @@ object AdvancedRules {
  }}
  fun execute(c:Context,r:AdvancedRule){val nm=c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
   if(Build.VERSION.SDK_INT>=26)nm.createNotificationChannel(NotificationChannel("advanced","MyLife automation rules",NotificationManager.IMPORTANCE_HIGH))
+  if (!nm.areNotificationsEnabled() || nm.getNotificationChannel("advanced")?.importance==NotificationManager.IMPORTANCE_NONE) {
+   record(c,r,"Notifications disabled");return
+  }
   r.actions.lines().filter{it.isNotBlank()}.forEachIndexed{index,line->
    val bits=line.split('|',limit=2);if(bits.size!=2)return@forEachIndexed
    val kind=bits[0];val value=bits[1];val notificationTag="advanced:${r.id}:$index"
    val target=when(kind){
-    "WEB"->Intent(Intent.ACTION_VIEW,Uri.parse(value))
+    "WEB"->Intent.createChooser(Intent(Intent.ACTION_VIEW,Uri.parse(value)),"Open website")
     "AUDIO"->Intent(c,PlayerActivity::class.java).putExtra("url",value)
     "WIFI"->Intent(Settings.ACTION_WIFI_SETTINGS)
     "DIAL"->Intent(Intent.ACTION_DIAL,Uri.parse("tel:"+value.filter{it.isDigit()||it=='+'}))
@@ -67,7 +103,7 @@ object AdvancedRules {
    val builder=if(Build.VERSION.SDK_INT>=26)Notification.Builder(c,"advanced") else Notification.Builder(c)
    val n=builder.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(r.name+" · "+kind)
     .setContentText(body).setStyle(Notification.BigTextStyle().bigText(body)).setContentIntent(click).setAutoCancel(true).build()
-   try{nm.notify(notificationTag,0,n)}catch(_:SecurityException){}
+   try{nm.notify(notificationTag,0,n);record(c,r,"$kind notification posted")}catch(_:SecurityException){record(c,r,"$kind permission denied")}
   }
  }
 }
