@@ -10,7 +10,7 @@ import org.json.*
 import java.time.LocalDateTime
 
 object RuleConditions {
-    val events=linkedMapOf("TIME" to "Scheduled time","DATE" to "Specific date","MANUAL" to "Manual / voice","BOOT" to "Device restart",
+    val events=linkedMapOf("TIME" to "Scheduled time","DATE" to "Specific date","MANUAL" to "Manual","VOICE" to "Voice phrase","BOOT" to "Device restart",
         "POWER_ON" to "Charging connected","POWER_OFF" to "Charging disconnected","BATTERY" to "Battery level changed",
         "APP_OPEN" to "App opened (periodic check)","ARRIVE" to "Location arrival","DEPART" to "Location departure","NOTIFICATION" to "Notification from package","BT_ON" to "Bluetooth device connected","BT_OFF" to "Bluetooth device disconnected","NETWORK" to "Network changed","WIFI" to "Wi-Fi changed")
     fun valid(expression:String):Boolean {
@@ -51,7 +51,7 @@ object RuleConditions {
                 "OR"->(0 until kids.length()).any{eval(kids.getJSONObject(it))}
                 "NOT"->kids.length()==1 && !eval(kids.getJSONObject(0))
                 "CHARGING"->(battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED,0)?:0)>0
-                "BATTERY"->percent>=node.getInt("value")
+                "BATTERY"->{require(percent>=0);percent>=node.getInt("value")}
                 "WIFI"->caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)==true
                 "ONLINE"->caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)==true
                 "AREA"->OptionalEvents.inside(context,node.getString("value"))
@@ -88,14 +88,14 @@ object RuleConditions {
                     done(JSONObject().put("op",ops[i]).put("children",JSONArray().put(JSONObject(old)).put(part)).toString())
                 }.show()
             }
-            AlertDialog.Builder(c).setTitle("Condition").setItems(arrayOf("Is true","Is false (NOT)")){_,i->
+            AlertDialog.Builder(c).setTitle(c.uiLabel("Condition")).setItems(arrayOf("Is true","Is false (NOT)")){_,i->
                 append(if(i==0)new else JSONObject().put("op","NOT").put("children",JSONArray().put(new)))
             }.show()
         }
-        AlertDialog.Builder(c).setTitle("Add condition").setItems(types){_,i->
+        AlertDialog.Builder(c).setTitle(c.uiLabel("Add condition")).setItems(types.map{c.uiLabel(it)}.toTypedArray()){_,i->
             if(i==8)done("") else if(i<3)join(JSONObject().put("op",arrayOf("CHARGING","WIFI","ONLINE")[i])) else {
                 val input=EditText(c)
-                AlertDialog.Builder(c).setTitle(types[i]).setView(input).setPositiveButton("Apply"){_,_->
+                AlertDialog.Builder(c).setTitle(c.uiLabel(types[i])).setView(input).setPositiveButton(c.uiLabel("Apply")){_,_->
                     val value=input.text.toString().trim()
                     val part=runCatching { when(i){
                         3->JSONObject().put("op","BATTERY").put("value",value.toInt().also{require(it in 0..100)})
@@ -106,7 +106,7 @@ object RuleConditions {
                             JSONObject().put("op","TIME").put("from",t[0].toSecondOfDay()/60).put("to",t[1].toSecondOfDay()/60)}
                     } }.getOrNull()
                     if(part==null)Toast.makeText(c,"Invalid condition",Toast.LENGTH_SHORT).show() else join(part)
-                }.setNegativeButton("Cancel",null).show()
+                }.setNegativeButton(c.uiLabel("Cancel"),null).show()
             }
         }.show()
     }
