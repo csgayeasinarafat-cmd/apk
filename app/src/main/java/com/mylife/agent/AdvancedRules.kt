@@ -52,6 +52,7 @@ object AdvancedRules {
    items.forEach { storage.execSQL("INSERT INTO rules VALUES (?,?)",arrayOf(it.id,it.toJson().toString())) }
    storage.setTransactionSuccessful()
   } finally { storage.endTransaction() }
+  ActionSequence.cancelChanged(c,items)
   reschedule(c)
  }
  fun history(c:Context):List<String> = db(c).rawQuery("SELECT stamp,name,detail FROM history ORDER BY id DESC LIMIT 100",null).use { cursor ->
@@ -63,6 +64,7 @@ object AdvancedRules {
   storage.execSQL("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 100)")
  }
  fun remove(c:Context,id:Int) {
+  OptionalEvents.cancel(c,id)
   val pending=pi(c,id)
   alarm(c).cancel(pending)
   pending.cancel()
@@ -71,28 +73,48 @@ object AdvancedRules {
  fun seed(c:Context){db(c)}
  private fun alarm(c:Context)=c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
  private fun pi(c:Context,id:Int)=PendingIntent.getBroadcast(c,id,Intent(c,AdvancedReceiver::class.java).putExtra("id",id),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
- fun reschedule(c:Context){load(c).forEach{schedule(c,it)}}
- fun schedule(c:Context,r:AdvancedRule){val a=alarm(c);val p=pi(c,r.id);a.cancel(p);if(!r.enabled)return
+ fun reschedule(c:Context){val rules=load(c);rules.forEach{schedule(c,it)};OptionalEvents.monitorApps(c,rules)}
+ fun schedule(c:Context,r:AdvancedRule){val a=alarm(c);val p=pi(c,r.id);a.cancel(p);OptionalEvents.cancel(c,r.id);if(!r.enabled)return
+  if(r.event in setOf("ARRIVE","DEPART")){if(!OptionalEvents.watch(c,r))record(c,r,"Location permission or provider unavailable");return}
   if(r.event !in setOf("TIME","DATE"))return
   val next=RuleLogic.next(java.time.ZonedDateTime.now(),r.hour,r.minute,r.days,if(r.event=="DATE")r.date else "")?:return
   scheduleWakeup(a,next.toInstant().toEpochMilli(),p)
  }
  fun validActions(s:String):Boolean=s.lines().filter{it.isNotBlank()}.let{lines->lines.isNotEmpty() && lines.all{line->
-  val v=line.split('|',limit=2);v.size==2 && v[0] in listOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM") &&
-  when(v[0]) {"WEB","AUDIO"->v[1].startsWith("https://") && android.util.Patterns.WEB_URL.matcher(v[1]).matches();"DIAL","WHATSAPP"->v[1].filter{it.isDigit()}.length>=7;else->true}
+  val v=line.split('|',limit=2);v.size==2 && v[0] in listOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM","APP","DELAY","RULE","PAUSE","STOP","SPEAK") &&
+  when(v[0]) {"DELAY"->(v[1].toLongOrNull()?:0L) in 1L..86400L;"RULE"->(v[1].toIntOrNull()?:0)>0;"SPEAK","NOTE","APP"->v[1].isNotBlank();"WEB","AUDIO"->v[1].startsWith("https://") && android.util.Patterns.WEB_URL.matcher(v[1]).matches();"DIAL","WHATSAPP"->v[1].filter{it.isDigit()}.length>=7;else->true}
  }}
  fun fire(c:Context,event:String){load(c).filter{it.enabled && it.event==event}.forEach{execute(c,it)}}
- fun execute(c:Context,r:AdvancedRule){
-  if(!RuleConditions.matches(c,r.condition)){record(c,r,"Skipped by condition");return}
+ fun execute(c:Context,r:AdvancedRule,path:Set<Int> = emptySet()){
+  if(r.id in path || path.size>=8){record(c,r,"Stopped recursive rule");return}
+  val satisfied=runCatching{RuleConditions.matches(c,r.condition)}.getOrElse{record(c,r,"Condition data unavailable");return}
+  if(!satisfied){record(c,r,"Skipped by condition");return}
+  steps(c,r,0,path+r.id)
+ }
+ fun steps(c:Context,r:AdvancedRule,start:Int,path:Set<Int>){
   val nm=c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
   if(Build.VERSION.SDK_INT>=26)nm.createNotificationChannel(NotificationChannel("advanced","MyLife automation rules",NotificationManager.IMPORTANCE_HIGH))
   if (!nm.areNotificationsEnabled() || nm.getNotificationChannel("advanced")?.importance==NotificationManager.IMPORTANCE_NONE) {
    record(c,r,"Notifications disabled");return
   }
   r.actions.lines().filter{it.isNotBlank()}.forEachIndexed{index,line->
+   if(index<start)return@forEachIndexed
    val bits=line.split('|',limit=2);if(bits.size!=2)return@forEachIndexed
    val kind=bits[0];val value=bits[1];val notificationTag="advanced:${r.id}:$index"
+   if(kind=="DELAY"){
+    val seconds=value.toLongOrNull()
+    if(seconds==null || seconds !in 1..86400){record(c,r,"Invalid delay");return}
+    ActionSequence.defer(c,r,index+1,seconds,path);record(c,r,"Waiting "+seconds+" seconds");return
+   }
+   if(kind=="RULE"){
+    val child=load(c).find{it.id==value.toIntOrNull() && it.enabled}
+    if(child==null)record(c,r,"Linked rule unavailable") else execute(c,child,path)
+    return@forEachIndexed
+   }
    val target=when(kind){
+    "APP"->Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(value)
+    "SPEAK"->Intent(c,SpeakActivity::class.java).putExtra("text",value)
+    "PAUSE","STOP"->Intent(c,AudioService::class.java).setAction(kind)
     "WEB"->Intent.createChooser(Intent(Intent.ACTION_VIEW,Uri.parse(value)),"Open website")
     "AUDIO"->Intent(c,PlayerActivity::class.java).putExtra("url",value)
     "BLUETOOTH"->Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
@@ -104,7 +126,7 @@ object AdvancedRules {
     else->Intent(c,MainActivity::class.java)
    }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
    target.identifier=notificationTag
-   val click=PendingIntent.getActivity(c,0,target,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+   val click=if(kind in setOf("PAUSE","STOP")) PendingIntent.getService(c,0,target,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) else PendingIntent.getActivity(c,0,target,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
    val body=when(kind){"WEB"->"Tap to open website; browser playback requires interaction";"AUDIO"->"Tap to open the audio player";"WIFI"->"Tap to change Wi-Fi manually";"DIAL"->"Tap to review phone number";"WHATSAPP"->"Tap to open WhatsApp; send manually";else->value}
    val builder=if(Build.VERSION.SDK_INT>=26)Notification.Builder(c,"advanced") else Notification.Builder(c)
    val n=builder.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(r.name+" · "+kind)
@@ -115,4 +137,4 @@ object AdvancedRules {
 }
 class AdvancedReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){val id=i?.getIntExtra("id",-1)?:-1
  val r=AdvancedRules.load(c).firstOrNull{it.id==id && it.enabled}?:return;AdvancedRules.execute(c,r);AdvancedRules.schedule(c,r)}}
-class AdvancedBootReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){if(i?.action in listOf(Intent.ACTION_BOOT_COMPLETED,Intent.ACTION_TIME_CHANGED,Intent.ACTION_TIMEZONE_CHANGED,AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)){AdvancedRules.reschedule(c);if(i?.action==Intent.ACTION_BOOT_COMPLETED)AdvancedRules.fire(c,"BOOT")}}}
+class AdvancedBootReceiver:BroadcastReceiver(){override fun onReceive(c:Context,i:Intent?){if(i?.action in listOf(Intent.ACTION_BOOT_COMPLETED,Intent.ACTION_TIME_CHANGED,Intent.ACTION_TIMEZONE_CHANGED,AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)){AdvancedRules.reschedule(c);if(i?.action==Intent.ACTION_BOOT_COMPLETED){ActionSequence.restore(c);AdvancedRules.fire(c,"BOOT")}}}}
