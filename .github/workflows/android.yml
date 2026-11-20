@@ -61,9 +61,22 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
+            if adb shell pm list packages -e com.google.android.gms | grep -Fq package:com.google.android.gms; then adb shell pm disable-user --user 0 com.google.android.gms; fi
             adb install app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -W -n com.mylife.agent/.MainActivity | grep -F 'Status: ok'
             adb shell pidof com.mylife.agent
             adb shell uiautomator dump /sdcard/mylife-window.xml
             adb shell cat /sdcard/mylife-window.xml | grep -Fq 'text="MyLife AI"'
-            python3 qa_android.py
+            adb exec-out screencap -p > mylife-dashboard.png
+            bash -o pipefail -c 'python3 -u qa_android.py 2>&1 | tee qa-results.log'
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyLifeAI-QA
+          path: |
+            app/build/test-results/testDebugUnitTest/TEST-*.xml
+            qa-results.log
+            mylife-dashboard.png
+          if-no-files-found: warn
