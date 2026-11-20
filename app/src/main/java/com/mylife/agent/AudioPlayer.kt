@@ -9,6 +9,8 @@ import android.os.*
 import android.widget.*
 import org.json.JSONObject
 
+private const val RECITATION = "Al-Baqarah · Aaqib Azeez"
+private const val RECITATION_URL = "https://upload.wikimedia.org/wikipedia/commons/4/4f/Chapter_2%2C_Al-Baqarah_%28Murattal%29_-_Recitation_of_the_Holy_Qur%27an.mp3"
 private const val PLAYER = "quran_player"
 private const val CHANNEL = "quran_audio"
 private const val NOTE_ID = 4401
@@ -134,7 +136,7 @@ class PlayerActivity : Activity() {
             handler.postDelayed(this,500)
         }
     }
-    private fun library()=JSONObject(prefs.getString("recordings","{}") ?: "{}")
+    private fun library()=JSONObject(prefs.getString("recordings","{}") ?: "{}").apply { if(!has(RECITATION))put(RECITATION,RECITATION_URL) }
     private fun reload(){
         val names=library().keys().asSequence().toList().sorted()
         track.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,names)
@@ -152,6 +154,7 @@ class PlayerActivity : Activity() {
             if(surah.text.isBlank() || reciter.text.isBlank())return@button Toast.makeText(this,"Enter surah and reciter",Toast.LENGTH_SHORT).show()
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("audio/*"),50)
         }
+        root.addView(TextView(this).apply{text="Al-Baqarah · Aaqib Azeez (CC0, Wikimedia Commons). Play streams the recording. Imported files play locally."})
         track=Spinner(this);root.addView(track);reload()
         button("Play · চালান"){
             val selected=track.selectedItem?.toString().orEmpty()
