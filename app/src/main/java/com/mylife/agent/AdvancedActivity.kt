@@ -14,7 +14,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  val scroll=ScrollView(this).apply{addView(root)};setContentView(scroll)
  fun label(s:String){root.addView(TextView(this).apply{text=s;textSize=17f;setPadding(0,12,0,4)})}
  label("MyLife AI · Advanced Rule Builder")
- label("IF time AND selected weekdays → THEN all actions")
+ label("Trigger → Conditions → Actions")
  val name=EditText(this).apply{hint="Rule name"};root.addView(name)
  val description=EditText(this).apply{hint="Description"};root.addView(description)
  val events=RuleConditions.events.keys.toList()
@@ -27,7 +27,7 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
  label("Days: 1=Mon, 2=Tue ... 7=Sun. Examples: 1234567 / 135")
  val days=EditText(this).apply{setText("1234567")};root.addView(days)
  label("Actions: one ACTION|value per line. Multiple lines = multiple actions.")
- val actions=EditText(this).apply{minLines=4;hint="WEB|https://quran.com/2\nAUDIO|https://example.com/audio.mp3\nNOTE|Drink water"};root.addView(actions)
+ val actions=EditText(this).apply{minLines=4;hint="WEB|https://quran.com/2\nQURAN|settings\nNOTE|Drink water"};root.addView(actions)
  root.addView(Button(this).apply{text="Choose time · সময়";setOnClickListener{
   val now=java.util.Calendar.getInstance()
   android.app.TimePickerDialog(this@AdvancedActivity,{_,h,m->time.setText(java.lang.String.format(java.util.Locale.ROOT,"%02d:%02d",h,m))},now.get(11),now.get(12),true).show()
@@ -38,12 +38,12 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
    .setPositiveButton("Apply"){_,_->days.setText(checked.indices.filter{checked[it]}.joinToString(""){(it+1).toString()})}.setNegativeButton("Cancel",null).show()
  }})
  root.addView(Button(this).apply{text="Add action · কাজ যোগ করুন";setOnClickListener{
-  val types=arrayOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM","APP","DELAY","RULE","PAUSE","STOP","SPEAK")
-  val labels=arrayOf("Open website","Play audio","Open Wi-Fi settings","Open dialer","Prepare WhatsApp","Show reminder","Bluetooth settings","Quran player","Create clock alarm","Open application (package)","Delay (seconds)","Run automation (ID)","Pause audio","Stop audio","Speak text")
+  val types=ActionCatalog.labels.keys.toTypedArray()
+  val labels=ActionCatalog.labels.values.toTypedArray()
   android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle("Then…").setItems(labels){_,index->
    fun append(value:String){actions.setText(listOf(actions.text.toString().trim(),types[index]+"|"+value).filter{it.isNotEmpty()}.joinToString("\n"))}
    if(types[index] in setOf("WIFI","BLUETOOTH","QURAN","ALARM","PAUSE","STOP"))append("settings") else {
-    val input=EditText(this@AdvancedActivity).apply{setSingleLine();hint=when(index){0,1->"https://";3,4->"+880…";9->"com.example.app";10->"Seconds (1–86400)";11->"Rule ID";else->"Text"}}
+    val input=EditText(this@AdvancedActivity).apply{setSingleLine();hint=when(index){0,1->"https://";3->"+880…";4->"+880…~Message";9->"com.example.app";10->"Seconds (1–86400)";11->"Rule ID";else->"Text"}}
     android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle(labels[index]).setView(input).setPositiveButton("Add"){_,_->append(input.text.toString().trim())}.setNegativeButton("Cancel",null).show()
    }
   }.show()
