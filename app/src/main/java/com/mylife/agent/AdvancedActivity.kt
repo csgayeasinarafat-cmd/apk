@@ -10,7 +10,7 @@ import android.widget.*
  */
 class AdvancedActivity:Activity(){private var editing:Int?=null
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);AdvancedRules.seed(this);render()}
- private fun render(){val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(25,25,25,25);setBackgroundColor(Color.WHITE)}
+ private fun render(){val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(25,25,25,25)}
  val scroll=ScrollView(this).apply{addView(root)};setContentView(scroll)
  fun label(s:String){root.addView(TextView(this).apply{text=s;textSize=17f;setPadding(0,12,0,4)})}
  label("MyLife AI · Advanced Rule Builder")
@@ -49,9 +49,10 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
   }.show()
  }})
  val info=TextView(this).apply{text="Supported: WEB, AUDIO, WIFI, DIAL, WHATSAPP, NOTE. Audio URLs must point to playable HTTPS audio files. Actions requiring user interaction open from notifications."};root.addView(info)
+ val search=EditText(this).apply{hint="Find by name or description · খুঁজুন"}
  val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
  fun clear(){editing=null;description.text.clear();trigger.setSelection(0);date.text.clear();condition="";cond.text="Condition · Always";name.text.clear();time.text.clear();days.setText("1234567");actions.text.clear()}
- fun refresh(){list.removeAllViews();AdvancedRules.load(this).forEach{r->
+ fun refresh(){list.removeAllViews();AdvancedRules.load(this).filter{it.name.contains(search.text,true)||it.description.contains(search.text,true)}.sortedBy{it.name.lowercase()}.forEach{r->
   list.addView(TextView(this).apply{text="#${r.id} ${r.name} · %02d:%02d · days ${r.days} · ${if(r.enabled)"ON" else "OFF"}".format(r.hour,r.minute);textSize=16f;setPadding(0,15,0,5)})
   fun button(t:String,cb:()->Unit){list.addView(Button(this).apply{text=t;setOnClickListener{cb()}})}
   button("Duplicate · কপি") {
@@ -84,6 +85,11 @@ class AdvancedActivity:Activity(){private var editing:Int?=null
   val entries=AdvancedRules.history(this@AdvancedActivity)
   android.app.AlertDialog.Builder(this@AdvancedActivity).setTitle("Recent activity").setMessage(entries.joinToString("\n\n").ifEmpty{"No executions yet"}).setPositiveButton("OK",null).show()
  }})
- label("Saved rules");root.addView(list);refresh()
+ label("Saved rules");root.addView(search)
+ search.addTextChangedListener(object:android.text.TextWatcher{
+  override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
+  override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){refresh()}
+  override fun afterTextChanged(s:android.text.Editable?){}
+ });root.addView(list);refresh()
  }
 }
