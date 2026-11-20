@@ -18,10 +18,11 @@ import java.util.Calendar
  */
 data class AdvancedRule(val id:Int,val name:String,val hour:Int,val minute:Int,val days:String,
                         val actions:String,val enabled:Boolean=true,val event:String="TIME",val date:String="",val condition:String="",val description:String="") {
- fun toJson()=JSONObject().put("id",id).put("name",name).put("hour",hour).put("minute",minute)
+ val steps get()=ActionCatalog.parse(actions)
+ fun toJson()=JSONObject().put("version",2).put("steps",JSONArray().apply{steps.forEach{put(it.json())}}).put("id",id).put("name",name).put("hour",hour).put("minute",minute)
   .put("event",event).put("date",date).put("condition",condition).put("description",description).put("days",days).put("actions",actions).put("enabled",enabled)
  companion object { fun parse(o:JSONObject)=AdvancedRule(o.getInt("id"),o.getString("name"),o.getInt("hour"),
-  o.getInt("minute"),o.optString("days","1234567"),o.getString("actions"),o.optBoolean("enabled",true),o.optString("event","TIME"),o.optString("date"),o.optString("condition"),o.optString("description")) }
+  o.getInt("minute"),o.optString("days","1234567"),o.optJSONArray("steps")?.let{ActionCatalog.decode(it)} ?: o.getString("actions"),o.optBoolean("enabled",true),o.optString("event","TIME"),o.optString("date"),o.optString("condition"),o.optString("description")) }
 }
 object AdvancedRules {
  private const val PREF="mylife_advanced_v12"
@@ -91,10 +92,10 @@ object AdvancedRules {
   val next=RuleLogic.next(java.time.ZonedDateTime.now(),r.hour,r.minute,r.days,if(r.event=="DATE")r.date else "")?:return
   scheduleWakeup(a,next.toInstant().toEpochMilli(),p)
  }
- fun validActions(s:String):Boolean=s.lines().filter{it.isNotBlank()}.let{lines->lines.isNotEmpty() && lines.all{line->
-  val v=line.split('|',limit=2);v.size==2 && v[0] in listOf("WEB","AUDIO","WIFI","DIAL","WHATSAPP","NOTE","BLUETOOTH","QURAN","ALARM","APP","DELAY","RULE","PAUSE","STOP","SPEAK") &&
-  when(v[0]) {"DELAY"->(v[1].toLongOrNull()?:0L) in 1L..86400L;"RULE"->(v[1].toIntOrNull()?:0)>0;"SPEAK","NOTE","APP"->v[1].isNotBlank();"WEB","AUDIO"->v[1].startsWith("https://") && android.util.Patterns.WEB_URL.matcher(v[1]).matches();"DIAL","WHATSAPP"->v[1].filter{it.isDigit()}.length>=7;else->true}
- }}
+ fun validActions(s:String):Boolean {
+  val actions=ActionCatalog.parse(s)
+  return actions.size in 1..100 && actions.all(ActionCatalog::valid)
+ }
  fun fire(c:Context,event:String){load(c).filter{it.enabled && it.event==event}.forEach{execute(c,it)}}
  fun execute(c:Context,r:AdvancedRule,path:Set<Int> = emptySet()){
   if(r.id in path || path.size>=8){record(c,r,"Stopped recursive rule");return}
@@ -108,10 +109,10 @@ object AdvancedRules {
   if (!nm.areNotificationsEnabled() || nm.getNotificationChannel("advanced")?.importance==NotificationManager.IMPORTANCE_NONE) {
    record(c,r,"Notifications disabled");return
   }
-  r.actions.lines().filter{it.isNotBlank()}.forEachIndexed{index,line->
+  r.steps.forEachIndexed{index,step->
    if(index<start)return@forEachIndexed
-   val bits=line.split('|',limit=2);if(bits.size!=2)return@forEachIndexed
-   val kind=bits[0];val value=bits[1];val notificationTag="advanced:${r.id}:$index"
+   if(!ActionCatalog.valid(step)){record(c,r,"Invalid "+step.type+" action");return}
+   val kind=step.type;val value=step.value;val notificationTag="advanced:${r.id}:$index"
    if(kind=="DELAY"){
     val seconds=value.toLongOrNull()
     if(seconds==null || seconds !in 1..86400){record(c,r,"Invalid delay");return}
