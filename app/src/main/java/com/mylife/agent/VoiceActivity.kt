@@ -37,6 +37,15 @@ class VoiceActivity:Activity(){
     }
     private fun preview(){
         val original=input.text.toString().trim()
+        val phrases=AdvancedRules.load(this).filter{it.enabled && it.event=="VOICE" && it.date.trim().equals(original,true)}
+        if(phrases.isNotEmpty()){
+            if(phrases.size>1){feedback.text="Multiple rules use this phrase. Give each an individual phrase.";return}
+            val rule=phrases.single()
+            AlertDialog.Builder(this).setTitle(rule.name).setMessage(rule.actions)
+                .setPositiveButton("Run now"){_,_->AdvancedRules.execute(this,rule);feedback.text="Check execution history"}
+                .setNegativeButton("Cancel",null).show()
+            return
+        }
         val memory=getSharedPreferences("private_memory",0)
         val contacts=memory.all.filterKeys{it.startsWith("Contact/")}.mapKeys{it.key.substringAfter('/')}.mapValues{it.value.toString()}
         val apps=memory.all.filterKeys{it.startsWith("Application/")}.mapKeys{it.key.substringAfter('/')}.mapValues{it.value.toString()}
