@@ -112,12 +112,22 @@ else:
     raise AssertionError("Scheduled notification did not arrive")
 print("PASS: preference migration and background scheduled notification")
 
-adb("shell","cmd","appops","set","com.mylife.agent","POST_NOTIFICATION","deny")
+def toggle_notifications(enable):
+    adb("shell","am","start","-W","-a","android.settings.APP_NOTIFICATION_SETTINGS","--es","android.provider.extra.APP_PACKAGE","com.mylife.agent")
+    switches=[n for n in nodes() if n.get("checkable")=="true"]
+    assert switches,"Notification settings control missing"
+    master=switches[0]
+    if (master.get("checked")=="true")!=enable:
+        x1,y1,x2,y2=map(int,re.findall(r"\d+",master.get("bounds")))
+        adb("shell","input","tap",str((x1+x2)//2),str((y1+y2)//2))
+    assert ([n for n in nodes() if n.get("checkable")=="true"][0].get("checked")=="true")==enable
+    adb("shell","input","keyevent","KEYCODE_HOME")
+toggle_notifications(False)
 launch()
 button("Automation studio")
 button("Run now (notifications)")
 assert count_rules(detail="Notifications disabled")>0,"Missing notification-denial history"
-adb("shell","cmd","appops","set","com.mylife.agent","POST_NOTIFICATION","allow")
+toggle_notifications(True)
 print("PASS: blocked notification recorded in history")
 
 # Exercise MediaPlayer with an original test tone. Grant the launcher temporary read
